@@ -1,0 +1,15 @@
+{
+  "workers": [
+    {
+      "id": "W01",
+      "name": "david",
+      "agent": "kimi",
+      "models": {
+        "dev": "deepseek/deepseek-v4-flash",
+        "review": "kimi-code/k3-256k",
+        "mutation": "deepseek/deepseek-v4-flash",
+        "test": "dashscope/qwen3.7-plus"
+      }
+    }
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "id": "B260814-01-minimal-web",
+  "title": "Minimal Web — JMAP message center + host demo",
+  "notes": "7-step implementation of minimal-web system per minimal-web/docs/first-plan.md. Tasks depend sequentially, each starts 30 min after previous. All executed by worker W01 (david).",
+  "tasks": [
+    "T260814-01-project-scaffold",
+    "T260814-02-jmap-client",
+    "T260814-03-inbox-view",
+    "T260814-04-message-detail",
+    "T260814-05-compose-view",
+    "T260814-06-host-demo",
+    "T260814-07-integration-test"
+  ],
+  "merge_target": "dev"
+}

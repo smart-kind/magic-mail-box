@@ -1,0 +1,11 @@
+{
+  "id": "T260814-05-compose-view",
+  "batch": "B260814-01-minimal-web",
+  "type": "dev",
+  "worker": "david",
+  "branch": "automation/T260814-05-compose-view",
+  "prompt_file": ".schedule-tasks-data/prompts/T260814-05-compose-view.md",
+  "schedule": { "run_at": "2026-08-13T20:24:32Z" },
+  "depends_on": ["T260814-03-inbox-view"],
+  "agent": "kimi"
+}

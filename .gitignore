@@ -27,3 +27,4 @@ dist/
 # Environment
 .env.local
 .env.*.local
+.schedule-tasks-data/state/

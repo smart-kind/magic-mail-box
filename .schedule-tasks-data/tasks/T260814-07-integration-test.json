@@ -1,0 +1,11 @@
+{
+  "id": "T260814-07-integration-test",
+  "batch": "B260814-01-minimal-web",
+  "type": "dev",
+  "worker": "david",
+  "branch": "automation/T260814-07-integration-test",
+  "prompt_file": ".schedule-tasks-data/prompts/T260814-07-integration-test.md",
+  "schedule": { "run_at": "2026-08-13T21:24:32Z" },
+  "depends_on": ["T260814-04-message-detail", "T260814-05-compose-view", "T260814-06-host-demo"],
+  "agent": "kimi"
+}
