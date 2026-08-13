@@ -1,0 +1,29 @@
+# Dependencies
+node_modules/
+
+# Cloned source repos (large, managed separately)
+bulwark-webmail/
+
+# Runtime data
+stalwart/config/
+stalwart/data/
+
+# OS
+.DS_Store
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# Build
+dist/
+.next/
+*.tsbuildinfo
+
+# Logs
+*.log
+
+# Environment
+.env.local
+.env.*.local

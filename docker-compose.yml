@@ -1,0 +1,35 @@
+services:
+  stalwart:
+    image: stalwartlabs/stalwart:v0.16
+    container_name: stalwart
+    restart: unless-stopped
+    ports:
+      - "25:25"
+      - "587:587"
+      - "993:993"
+      - "443:443"
+      - "8082:8080"
+    volumes:
+      - ./stalwart/config:/etc/stalwart
+      - ./stalwart/data:/var/lib/stalwart
+    environment:
+      - TZ=Asia/Shanghai
+    networks:
+      - mailnet
+
+  bulwark:
+    image: ghcr.io/bulwarkmail/webmail:latest
+    container_name: bulwark
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - JMAP_SERVER_URL=https://localhost
+      - ALLOW_CUSTOM_JMAP_ENDPOINT=true
+      - TZ=Asia/Shanghai
+    networks:
+      - mailnet
+
+networks:
+  mailnet:
+    driver: bridge
