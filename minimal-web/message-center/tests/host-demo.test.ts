@@ -10,8 +10,9 @@
 //        domainId 来自 Domain/get）；2) 创建成功后选择器加载 demo001~demo100
 //        且写入 localStorage；3) primaryKeyViolation 视为幂等跳过而非失败，
 //        其他错误不写入用户列表；4) 「打开消息中心」把选中用户的
-//        username/password 以 URL 参数写进 iframe.src（与 message-center
-//        自动登录契约一致）；5) 刷新（重新执行脚本）后无需网络即可恢复用户列表。
+//        user/pass/server 以 URL 参数写进 iframe.src（与 message-center
+//        Inbox.vue 的 route.query 自动登录契约一致）；5) 刷新（重新执行脚本）后
+//        无需网络即可恢复用户列表。
 // RISK: mock 的 JMAP 响应是按 Stalwart v1.0.0 真实响应形状手工构造的，
 //        若 Stalwart 升级改变响应形状测试不会发现——该风险由手工 curl/浏览器
 //        联调覆盖（见任务报告）。测试不验证 CSS 与视觉呈现。
@@ -231,7 +232,7 @@ describe('消息中心 iframe 嵌入', () => {
     await waitForStatus('已写入 localStorage')
   }
 
-  it('iframe src 携带选中用户的 username/password URL 参数（自动登录契约）', async () => {
+  it('iframe src 携带选中用户的 user/pass/server URL 参数（自动登录契约）', async () => {
     await createUsers()
     $('user-select').value = 'demo002@local.test'
     $('btn-open').click()
@@ -239,19 +240,22 @@ describe('消息中心 iframe 嵌入', () => {
     const frame = $('mc-frame') as unknown as HTMLIFrameElement
     expect(frame.hidden).toBe(false)
     expect(frame.getAttribute('src')).toBe(
-      '../message-center/dist/index.html?username=demo002%40local.test&password=Demo002!Mc7',
+      '../message-center/dist/index.html?user=demo002%40local.test&pass=Demo002!Mc7&server=' +
+        encodeURIComponent('http://localhost:8082'),
     )
   })
 
-  it('自定义消息中心地址也被正确使用', async () => {
+  it('自定义消息中心地址与自定义 JMAP 服务器都被正确使用', async () => {
     await createUsers()
     $('cfg-mc-url').value = 'http://localhost:5173'
+    $('cfg-server').value = 'http://mail.example.test:8082'
     $('user-select').value = 'demo100@local.test'
     $('btn-open').click()
 
     const frame = $('mc-frame') as unknown as HTMLIFrameElement
     expect(frame.getAttribute('src')).toBe(
-      'http://localhost:5173?username=demo100%40local.test&password=Demo100!Mc7',
+      'http://localhost:5173?user=demo100%40local.test&pass=Demo100!Mc7&server=' +
+        encodeURIComponent('http://mail.example.test:8082'),
     )
   })
 
@@ -271,7 +275,8 @@ describe('消息中心 iframe 嵌入', () => {
     $('user-select').value = 'demo007@local.test'
     $('btn-open-tab').click()
     expect(openSpy).toHaveBeenCalledWith(
-      '../message-center/dist/index.html?username=demo007%40local.test&password=Demo007!Mc7',
+      '../message-center/dist/index.html?user=demo007%40local.test&pass=Demo007!Mc7&server=' +
+        encodeURIComponent('http://localhost:8082'),
       '_blank',
     )
   })

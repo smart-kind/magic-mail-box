@@ -127,8 +127,9 @@
           <button id="btn-open-tab" class="secondary">在新标签页打开</button>
         </div>
         <p class="hint">
-          通过 URL 参数 <code>?username=&lt;邮箱&gt;&amp;password=&lt;密码&gt;</code>
-          传入当前选中用户凭证，消息中心启动时用该参数完成 JMAP Basic Auth 自动登录。
+          通过 URL 参数 <code>?user=&lt;邮箱&gt;&amp;pass=&lt;密码&gt;&amp;server=&lt;JMAP 地址&gt;</code>
+          传入当前选中用户凭证与服务器地址，消息中心启动时用该参数完成 JMAP Basic Auth 自动登录
+          （参数名与 message-center 的 <code>Inbox.vue</code> 读取逻辑一致）。
           多开几个浏览器标签页、各选不同用户，即可模拟多人互发消息。
           注意：以 <code>file://</code> 直接打开本页时，创建用户等 JMAP 功能可用，
           但浏览器会拦截 iframe 内 <code>file://</code> 构建产物的 JS/CSS；
@@ -144,9 +145,11 @@
       'use strict'
 
       // ------------------------------------------------------------------
-      // 与 message-center 的契约（自动登录 URL 参数，见 docs/first-plan.md）：
-      //   <消息中心地址>?username=<完整邮箱>&password=<密码>
-      // message-center 的 Login 页启动时读取这两个参数做 JMAP Basic Auth。
+      // 与 message-center 的契约（自动登录 URL 参数，与 src/views/Inbox.vue
+      // 的 route.query 读取逻辑保持一致）：
+      //   <消息中心地址>?user=<完整邮箱>&pass=<密码>&server=<JMAP 服务器地址>
+      // message-center 启动时读取 user/pass 做 JMAP Basic Auth 自动登录，
+      // server 可选（缺省 http://localhost:8082）。
       // ------------------------------------------------------------------
 
       const LS_KEYS = {
@@ -192,13 +195,14 @@
         return users
       }
 
-      /** 拼接消息中心 URL，带上当前用户凭证（见文件顶部契约注释）。 */
-      function messageCenterUrl(base, user) {
+      /** 拼接消息中心 URL，带上当前用户凭证与服务器地址（见文件顶部契约注释）。 */
+      function messageCenterUrl(base, user, server) {
         const sep = base.includes('?') ? '&' : '?'
         return (
           base + sep +
-          'username=' + encodeURIComponent(user.email) +
-          '&password=' + encodeURIComponent(user.password)
+          'user=' + encodeURIComponent(user.email) +
+          '&pass=' + encodeURIComponent(user.password) +
+          '&server=' + encodeURIComponent(server)
         )
       }
 
@@ -389,8 +393,9 @@
           return
         }
         const base = $('cfg-mc-url').value.trim() || DEFAULTS.mcUrl
+        const server = $('cfg-server').value.trim() || DEFAULTS.server
         saveConfig()
-        const url = messageCenterUrl(base, user)
+        const url = messageCenterUrl(base, user, server)
         if (inNewTab) {
           window.open(url, '_blank')
           return
