@@ -224,6 +224,7 @@ magic-mail-box/
 
 ## 注意事项
 
+- `docker-compose.yml` 必须设置 `STALWART_PUBLIC_URL=http://localhost:8082`：JMAP session 里的 `apiUrl` 由它生成，不设置则是 `https://mail.local`，浏览器无法访问（详见 `minimal-web/docs/integration-test.md`）
 - 本地测试不需要配 DNS（MX/SPF/DKIM）、SSL 证书
 - Stalwart 默认使用 RocksDB 嵌入式存储，不需要额外数据库
 - 每次容器重启，bootstrap 临时密码会更新，以最新日志为准
