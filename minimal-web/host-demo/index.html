@@ -114,7 +114,7 @@
           <button id="btn-create">创建测试用户（demo001 ~ demo100）</button>
         </div>
         <p class="hint">
-          批量创建 demo001@域名 ~ demo100@域名，密码规则 <code>Demo001!</code> ~ <code>Demo100!</code>。
+          批量创建 demo001@域名 ~ demo100@域名，密码规则 <code>Demo001!Mc7</code> ~ <code>Demo100!Mc7</code>。
           已存在的用户会被跳过（幂等，可重复点击）。
         </p>
         <div id="status"></div>
@@ -130,6 +130,11 @@
           通过 URL 参数 <code>?username=&lt;邮箱&gt;&amp;password=&lt;密码&gt;</code>
           传入当前选中用户凭证，消息中心启动时用该参数完成 JMAP Basic Auth 自动登录。
           多开几个浏览器标签页、各选不同用户，即可模拟多人互发消息。
+          注意：以 <code>file://</code> 直接打开本页时，创建用户等 JMAP 功能可用，
+          但浏览器会拦截 iframe 内 <code>file://</code> 构建产物的 JS/CSS；
+          建议在 <code>minimal-web/</code> 下起一个静态服务（如
+          <code>python3 -m http.server</code>）再访问 <code>/host-demo/</code>，
+          或将消息中心地址指向 vite 开发服务器（<code>http://localhost:5173</code>）。
         </p>
         <p><iframe id="mc-frame" title="消息中心" hidden></iframe></p>
       </section>
@@ -166,9 +171,13 @@
         return 'demo' + String(n).padStart(3, '0')
       }
 
-      /** 统一密码规则：Demo001! ~ Demo100!。 */
+      /**
+       * 统一密码规则：Demo001!Mc7 ~ Demo100!Mc7。
+       * 注意：计划文档中的 `DemoNNN!` 会被 Stalwart 的密码强度检查
+       * （zxcvbn）拒绝，因此追加固定后缀 `Mc7` 使其通过。
+       */
       function demoPassword(n) {
-        return 'Demo' + String(n).padStart(3, '0') + '!'
+        return 'Demo' + String(n).padStart(3, '0') + '!Mc7'
       }
 
       function demoUsers(domain) {
