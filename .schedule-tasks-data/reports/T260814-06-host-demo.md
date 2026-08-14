@@ -1,4 +1,7 @@
-# Report — T260814-06-host-demo
+# Report — T260814-06-host-demo (done)
+
+- Attempts: 1
+- Finished: 2026-08-14T02:59:05.753Z
 
 ## Development
 实现了 `minimal-web/host-demo/index.html`：一个零构建、纯前端单文件的宿主管理页面。用户可以直接用浏览器打开它，填写 Stalwart 服务器地址和管理员凭证（存 localStorage），一键通过 JMAP 管理 API 批量创建 demo001~demo100 共 100 个测试用户（幂等，可重复点击），在用户选择器中挑选当前标签页身份，然后把消息中心以 iframe 嵌入页面（或新标签页打开），用户凭证通过 `?user=<邮箱>&pass=<密码>&server=<JMAP 地址>` URL 参数传给消息中心做自动登录（参数名与已落地的 `Inbox.vue` 自动登录逻辑逐一核对一致）。多开标签页各选不同用户即可模拟多人通信。开发过程中对本地 Stalwart v1.0.0 实例做了真实 API 探测与无头浏览器联调，修正了多处与计划文档的偏差（见 Caveats）。
