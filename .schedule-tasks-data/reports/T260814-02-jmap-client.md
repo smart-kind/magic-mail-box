@@ -1,4 +1,7 @@
-# Report — T260814-02-jmap-client
+# Report — T260814-02-jmap-client (done)
+
+- Attempts: 1
+- Finished: 2026-08-14T02:29:27.920Z
 
 ## Development
 在 `minimal-web/message-center/src/api/jmap.ts` 实现了完整的 JMAP 客户端封装（`createJmapClient`），供 Inbox / MessageDetail / Compose 页面调用。客户端通过 `GET {baseUrl}/.well-known/jmap` 做会话发现（HTTP Basic Auth），提取 accountId / downloadUrl；核心操作包括：`queryInboxIds`（Mailbox/query 按 role=inbox 定位收件箱 + Email/query 按 receivedAt 倒序取 id）、`listInbox`（Email/get 摘要列表）、`getEmails`（含 textBody/bodyValues 的完整正文）、`sendEmail`（Identity/get 取发信身份 → Email/set 建草稿 → EmailSubmission/set 提交，`onSuccessDestroyEmail` 自动清理草稿）、`deleteEmails`（Email/set destroy）。全部仅使用原生 `fetch`，所有方法返回带类型定义的 Promise；错误统一为 `JmapError`（含 HTTP status / JMAP error type），覆盖 401、500、无 accountId、无 identity、notCreated/notDestroyed 等场景，错误信息绝不包含密码。注：任务参考的 `../bulwark-webmail/` 在本 worktree 中不存在，实现依据 JMAP RFC 8620/8621 与 Stalwart 的标准行为。
