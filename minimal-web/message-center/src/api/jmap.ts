@@ -100,7 +100,14 @@ export function createJmapClient(options: JmapClientOptions): JmapClient {
   let sessionPromise: Promise<JmapSession> | null = null
 
   async function getSession(): Promise<JmapSession> {
-    sessionPromise ??= fetchSession()
+    if (!sessionPromise) {
+      const pending = fetchSession()
+      sessionPromise = pending
+      // 失败不缓存：否则凭证修正后同一 client 永远无法恢复。
+      pending.catch(() => {
+        if (sessionPromise === pending) sessionPromise = null
+      })
+    }
     return sessionPromise
   }
 
