@@ -10,15 +10,16 @@
 - `.schedule-tasks-data/reports/T260814-06-host-demo.md`（本报告）。
 
 ## Commits
-（已 rebase 到 origin/dev 最新，`git log origin/dev..HEAD --oneline`）
+（已 rebase 到 origin/dev 最新（含 T260814-02/03/04），以下为提交主题，rebase 后 hash 以 `git log origin/dev..HEAD --oneline` 实时输出为准）
 ```
-48aaeec fix(host-demo): align iframe URL contract with inbox-view auto-auth (user/pass/server)
-d62c23f report: fill final commit list
-a852a59 chore(message-center): add @types/node for test type-check; update task report
-e79d573 report: task T260814-06-host-demo (done)
-90c1ea8 test(host-demo): jsdom tests driving real index.html against mocked JMAP server
-f6ecc5a fix(host-demo): strengthen demo password rule for Stalwart zxcvbn check; document file:// iframe caveat
-d5ed991 feat(host-demo): single-file host admin page with user selector, batch create, iframe embed
+report: final — contract realignment, integration findings
+fix(host-demo): align iframe URL contract with inbox-view auto-auth (user/pass/server)
+report: fill final commit list
+chore(message-center): add @types/node for test type-check; update task report
+report: task T260814-06-host-demo (done)
+test(host-demo): jsdom tests driving real index.html against mocked JMAP server
+fix(host-demo): strengthen demo password rule for Stalwart zxcvbn check; document file:// iframe caveat
+feat(host-demo): single-file host admin page with user selector, batch create, iframe embed
 ```
 
 ## Gates verified
