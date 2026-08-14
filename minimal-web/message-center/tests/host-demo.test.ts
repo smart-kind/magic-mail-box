@@ -240,7 +240,7 @@ describe('消息中心 iframe 嵌入', () => {
     const frame = $('mc-frame') as unknown as HTMLIFrameElement
     expect(frame.hidden).toBe(false)
     expect(frame.getAttribute('src')).toBe(
-      '../message-center/dist/index.html?user=demo002%40local.test&pass=Demo002!Mc7&server=' +
+      '../message-center/dist/index.html#/inbox?user=demo002%40local.test&pass=Demo002!Mc7&server=' +
         encodeURIComponent('http://localhost:8082'),
     )
   })
@@ -254,7 +254,7 @@ describe('消息中心 iframe 嵌入', () => {
 
     const frame = $('mc-frame') as unknown as HTMLIFrameElement
     expect(frame.getAttribute('src')).toBe(
-      'http://localhost:5173?user=demo100%40local.test&pass=Demo100!Mc7&server=' +
+      'http://localhost:5173#/inbox?user=demo100%40local.test&pass=Demo100!Mc7&server=' +
         encodeURIComponent('http://mail.example.test:8082'),
     )
   })
@@ -275,7 +275,7 @@ describe('消息中心 iframe 嵌入', () => {
     $('user-select').value = 'demo007@local.test'
     $('btn-open-tab').click()
     expect(openSpy).toHaveBeenCalledWith(
-      '../message-center/dist/index.html?user=demo007%40local.test&pass=Demo007!Mc7&server=' +
+      '../message-center/dist/index.html#/inbox?user=demo007%40local.test&pass=Demo007!Mc7&server=' +
         encodeURIComponent('http://localhost:8082'),
       '_blank',
     )
