@@ -1,4 +1,7 @@
-# Report — T260814-03-inbox-view
+# Report — T260814-03-inbox-view (done)
+
+- Attempts: 1
+- Finished: 2026-08-14T02:42:15.045Z
 
 ## Development
 实现了消息中心的收件箱页面：打开页面时自动使用当前用户凭证（优先取 user store，否则从 URL query `?user=&pass=` 读取并写入 store，服务器地址可用 `&server=` 覆盖，默认 `http://localhost:8082`，对应 docker-compose 的 Stalwart 端口映射）完成 JMAP Basic Auth 并拉取收件箱。列表逐条显示发送者（有名字显示名字，否则显示邮箱）、主题（空则显示「（无主题）」）、接收时间（本地化格式）和未读标记（无 `$seen` keyword 的邮件显示蓝点并加粗）。点击条目跳转 `/message/:id`；每条带删除按钮，删除成功后本地移除该条目并向服务器重新拉取列表对齐状态。空收件箱、加载中、加载/删除失败（可重试）、缺少凭证四种状态都有明确界面提示。为支持未读标记，对 T260814-02 的 `jmap.ts` 做了最小扩展：`EmailSummary` 增加 `keywords` 字段（`SUMMARY_PROPERTIES` 与 `toSummary` 同步更新，缺省 `{}`），视图不直接发 fetch。
