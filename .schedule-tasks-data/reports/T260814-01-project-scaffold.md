@@ -1,4 +1,7 @@
-# Report — T260814-01-project-scaffold
+# Report — T260814-01-project-scaffold (done)
+
+- Attempts: 1
+- Finished: 2026-08-14T01:36:27.647Z
 
 ## Development
 在 `minimal-web/message-center/` 新建了 Vue 3 + TypeScript + Vite 的项目骨架，完成了基础路由配置。应用壳（App.vue）展示「消息中心」标题和导航；`/login`、`/inbox`、`/message/:id`、`/compose` 四条路由分别渲染对应的占位视图，`/` 重定向到 `/inbox`。目录结构严格遵循 `minimal-web/docs/first-plan.md` 的约定（`api/`、`stores/`、`views/`、`router/`）。全局用户状态用 Vue reactive 实现（`stores/user.ts`），JMAP 客户端仅放了 basic auth 头的最小骨架（`api/jmap.ts`），具体 JMAP 交互留给下一个任务。
