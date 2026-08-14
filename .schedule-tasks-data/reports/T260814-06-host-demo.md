@@ -6,13 +6,13 @@
 ## Files changed
 - `minimal-web/host-demo/index.html`（新建）— 宿主 Demo 全部功能（内联 JS/CSS，无外部依赖）。
 - `minimal-web/message-center/tests/host-demo.test.ts`（新建）— 宿主 Demo 的 jsdom 行为测试。放在 message-center 的测试目录是为了复用其 vitest/jsdom 依赖、让 `npm test` 一条命令覆盖全部测试；测试从磁盘读取真实的 `../host-demo/index.html` 并执行其内联脚本，不是复制品。
+- `minimal-web/message-center/package.json` / `package-lock.json` — 新增 devDependency `@types/node`：测试用了 `node:fs`/`node:path` 读取被测 HTML，而 `npm run build` 的 `vue-tsc --noEmit` 会类型检查 `tests/**`，没有 node 类型会报错。
 - `.schedule-tasks-data/reports/T260814-06-host-demo.md`（本报告）。
 
 ## Commits
+（rebase 到 origin/dev 之后的最终历史）
 ```
-51e3caf test(host-demo): jsdom tests driving real index.html against mocked JMAP server
-130b02a fix(host-demo): strengthen demo password rule for Stalwart zxcvbn check; document file:// iframe caveat
-de12efa feat(host-demo): single-file host admin page with user selector, batch create, iframe embed
+<见 git log origin/dev..HEAD>
 ```
 
 ## Gates verified
@@ -24,7 +24,7 @@ de12efa feat(host-demo): single-file host admin page with user selector, batch c
 - **样式简洁、无重型 UI 库** — 通过：单文件内联 CSS，零依赖。
 
 ## Mutation check
-`cd minimal-web/message-center && npm test` — 既有 6 个测试（router、user-store）全部通过，无回归（本任务未改动 message-center 源码）。`npm run build`（vue-tsc + vite build）也通过。
+`cd minimal-web/message-center && npm test` — 全部通过，无回归。在 rebase 到 `origin/dev`（含 T260814-02 的 JMAP 客户端）之后的集成结果上重新验证：`npm test` 4 个测试文件 38 个用例全部通过，`npm run build`（vue-tsc + vite build）通过。集成中发现并修复一个问题：T260814-02 落地后 build 会类型检查 tests/，我的测试引入 `node:fs` 需要 `@types/node`，已补为 devDependency。
 
 ## Self-review
 - 逐行重读了最终文件：无死代码，所有函数均被使用；错误路径（HTTP 非 2xx、JMAP error 响应、Domain 查询为空、localStorage 损坏）均有处理。
