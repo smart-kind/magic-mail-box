@@ -26,6 +26,14 @@ function queryString(value: unknown): string {
   return typeof value === 'string' ? value : ''
 }
 
+function makeClient() {
+  return createJmapClient({
+    baseUrl: queryString(route.query.server) || DEFAULT_SERVER,
+    username: user.state.username,
+    password: user.state.password,
+  })
+}
+
 async function load() {
   error.value = ''
   missingCredentials.value = false
@@ -40,15 +48,9 @@ async function load() {
     user.setCredentials(username, password)
   }
 
-  const client = createJmapClient({
-    baseUrl: queryString(route.query.server) || DEFAULT_SERVER,
-    username: user.state.username,
-    password: user.state.password,
-  })
-
   loading.value = true
   try {
-    emails.value = await client.listInbox()
+    emails.value = await makeClient().listInbox()
   } catch (err) {
     error.value = err instanceof JmapError ? err.message : `加载收件箱失败: ${(err as Error).message}`
   } finally {
@@ -80,12 +82,9 @@ async function remove(email: EmailSummary) {
   deletingId.value = email.id
   error.value = ''
   try {
-    const client = createJmapClient({
-      baseUrl: queryString(route.query.server) || DEFAULT_SERVER,
-      username: user.state.username,
-      password: user.state.password,
-    })
-    await client.deleteEmails([email.id])
+    await makeClient().deleteEmails([email.id])
+    // 先本地移除，保证「删除后列表不再显示该条」；再向服务器刷新一次对齐状态。
+    emails.value = emails.value.filter((e) => e.id !== email.id)
     await load()
   } catch (err) {
     error.value = err instanceof JmapError ? err.message : `删除失败: ${(err as Error).message}`

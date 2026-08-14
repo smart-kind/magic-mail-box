@@ -317,6 +317,39 @@ describe('listInbox', () => {
     const methods = recorded.flatMap((c) => c.body?.methodCalls.map(([n]) => n) ?? [])
     expect(methods).not.toContain('Email/get')
   })
+
+  it('requests keywords and maps them onto summaries (absent → {})', async () => {
+    const recorded: RecordedCall[] = []
+    const client = makeClient({
+      recorded,
+      onApi: (calls) =>
+        calls.map(([name, , tag]) => {
+          if (name === 'Email/get') {
+            return [
+              name,
+              {
+                list: [
+                  { id: 'e1', subject: 'read', keywords: { $seen: true } },
+                  { id: 'e2', subject: 'unread' },
+                ],
+                notFound: [],
+              },
+              tag,
+            ]
+          }
+          return defaultApiHandler([[name, {}, tag]])[0]
+        }) as [string, Record<string, unknown>, string][],
+    })
+
+    const list = await client.listInbox()
+    expect(list[0].keywords).toEqual({ $seen: true })
+    expect(list[1].keywords).toEqual({})
+
+    const getArgs = recorded
+      .flatMap((c) => c.body?.methodCalls ?? [])
+      .find(([n]) => n === 'Email/get')![1]
+    expect(getArgs.properties).toContain('keywords')
+  })
 })
 
 describe('sendEmail', () => {
