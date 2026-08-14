@@ -79,6 +79,7 @@ async function mountDetail(path: string) {
 beforeEach(() => {
   vi.clearAllMocks()
   useUserStore().clear()
+  sessionStorage.clear()
   mocks.getEmails.mockResolvedValue([TEXT_MAIL])
   mocks.deleteEmails.mockResolvedValue()
 })

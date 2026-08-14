@@ -77,6 +77,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   useUserStore().clear()
   localStorage.clear()
+  sessionStorage.clear()
   mocks.sendEmail.mockResolvedValue()
 })
 

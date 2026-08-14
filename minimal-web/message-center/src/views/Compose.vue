@@ -7,7 +7,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { createJmapClient, JmapError } from '../api/jmap'
-import { useUserStore } from '../stores/user'
+import { persistedServer, persistServer, useUserStore } from '../stores/user'
 import { loadDemoUsers, type DemoUser } from '../data/demoUsers'
 import { parseStructuredBody } from '../utils/structuredBody'
 
@@ -72,7 +72,7 @@ function queryString(value: unknown): string {
 
 function makeClient() {
   return createJmapClient({
-    baseUrl: queryString(route.query.server) || DEFAULT_SERVER,
+    baseUrl: queryString(route.query.server) || persistedServer() || DEFAULT_SERVER,
     username: user.state.username,
     password: user.state.password,
   })
@@ -81,6 +81,7 @@ function makeClient() {
 /** 与 Inbox/MessageDetail 一致：优先 user store，否则从 URL query 自动登录。 */
 function ensureCredentials(): boolean {
   missingCredentials.value = false
+  persistServer(queryString(route.query.server))
   if (user.state.loggedIn) return true
   const username = queryString(route.query.user)
   const password = queryString(route.query.pass)

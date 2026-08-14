@@ -5,7 +5,7 @@
 import { onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { createJmapClient, JmapError, type EmailSummary } from '../api/jmap'
-import { useUserStore } from '../stores/user'
+import { persistedServer, persistServer, useUserStore } from '../stores/user'
 
 /** docker-compose.yml 把 Stalwart 的 8080 映射到宿主 8082。 */
 const DEFAULT_SERVER = 'http://localhost:8082'
@@ -28,7 +28,7 @@ function queryString(value: unknown): string {
 
 function makeClient() {
   return createJmapClient({
-    baseUrl: queryString(route.query.server) || DEFAULT_SERVER,
+    baseUrl: queryString(route.query.server) || persistedServer() || DEFAULT_SERVER,
     username: user.state.username,
     password: user.state.password,
   })
@@ -47,6 +47,7 @@ async function load() {
     }
     user.setCredentials(username, password)
   }
+  persistServer(queryString(route.query.server))
 
   loading.value = true
   try {

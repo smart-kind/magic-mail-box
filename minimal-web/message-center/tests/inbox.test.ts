@@ -71,6 +71,7 @@ async function mountInbox(path = '/inbox?user=demo001&pass=Demo001!') {
 beforeEach(() => {
   vi.clearAllMocks()
   useUserStore().clear()
+  sessionStorage.clear()
   mocks.listInbox.mockResolvedValue([UNREAD, READ])
   mocks.deleteEmails.mockResolvedValue()
 })

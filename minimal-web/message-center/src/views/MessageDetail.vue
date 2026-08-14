@@ -6,7 +6,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { createJmapClient, JmapError, type EmailAddress, type EmailDetail } from '../api/jmap'
-import { useUserStore } from '../stores/user'
+import { persistedServer, persistServer, useUserStore } from '../stores/user'
 import { parseStructuredBody, type JsonValue } from '../utils/structuredBody'
 import JsonCard from '../components/JsonCard.vue'
 
@@ -43,7 +43,7 @@ function queryString(value: unknown): string {
 
 function makeClient() {
   return createJmapClient({
-    baseUrl: queryString(route.query.server) || DEFAULT_SERVER,
+    baseUrl: queryString(route.query.server) || persistedServer() || DEFAULT_SERVER,
     username: user.state.username,
     password: user.state.password,
   })
@@ -67,6 +67,7 @@ async function load() {
     }
     user.setCredentials(username, password)
   }
+  persistServer(queryString(route.query.server))
 
   loading.value = true
   try {
