@@ -13,6 +13,11 @@ services:
       - ./stalwart/config:/etc/stalwart
       - ./stalwart/data:/var/lib/stalwart
     environment:
+      # JMAP session（.well-known/jmap）里的 apiUrl/downloadUrl 由该变量决定；
+      # 不设置时回退为 https://<server.hostname>（本环境为 https://mail.local），
+      # 浏览器无法访问，导致所有 JMAP 客户端在拿到 session 后请求失败。
+      # 必须与宿主访问 8080 容器端口所用的地址一致（compose 映射为 8082）。
+      - STALWART_PUBLIC_URL=http://localhost:8082
       - TZ=Asia/Shanghai
     networks:
       - mailnet
