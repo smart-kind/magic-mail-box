@@ -4,7 +4,7 @@
 // 通过 src/api/jmap.ts 的 sendEmail 发送。JSON 模式下正文必须是合法的 JSON
 // 对象/数组（与详情页 parseStructuredBody 的识别规则一致），保证详情页能
 // 渲染为结构化卡片。见 minimal-web/docs/first-plan.md「发消息」一节。
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { createJmapClient, JmapError } from '../api/jmap'
 import { useUserStore } from '../stores/user'
@@ -20,8 +20,8 @@ const route = useRoute()
 const router = useRouter()
 const user = useUserStore()
 
-/** 收件人候选（demo 用户列表）。 */
-const candidates = ref<DemoUser[]>(loadDemoUsers())
+/** 收件人候选（demo 用户列表，加载后不变化）。 */
+const candidates = loadDemoUsers()
 /** 已选中的收件人。 */
 const selected = ref<DemoUser[]>([])
 /** 收件人搜索关键字。 */
@@ -57,7 +57,7 @@ const fieldErrors = ref<{ recipients: string; subject: string; body: string }>({
 const filteredCandidates = computed(() => {
   const chosen = new Set(selected.value.map((u) => u.email))
   const keyword = search.value.trim().toLowerCase()
-  return candidates.value.filter(
+  return candidates.filter(
     (u) =>
       !chosen.has(u.email) &&
       (!keyword ||
@@ -154,6 +154,9 @@ async function send() {
 function backToInbox() {
   router.push({ path: '/inbox', query: { server: queryString(route.query.server) || undefined } })
 }
+
+// 直接进入本页（非站内导航）时立即检查凭证，而不是等到点发送才提示。
+onMounted(ensureCredentials)
 </script>
 
 <template>
