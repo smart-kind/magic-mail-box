@@ -6,5 +6,6 @@
   "branch": "automation/T260814-01-project-scaffold",
   "prompt_file": ".schedule-tasks-data/prompts/T260814-01-project-scaffold.md",
   "schedule": { "run_at": "2026-08-13T18:24:32Z" },
-  "agent": "kimi"
+  "agent": "kimi",
+  "model": "kimi-code/k3"
 }

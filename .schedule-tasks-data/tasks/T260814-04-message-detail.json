@@ -7,5 +7,6 @@
   "prompt_file": ".schedule-tasks-data/prompts/T260814-04-message-detail.md",
   "schedule": { "run_at": "2026-08-13T19:54:32Z" },
   "depends_on": ["T260814-03-inbox-view"],
-  "agent": "kimi"
+  "agent": "kimi",
+  "model": "kimi-code/k3"
 }

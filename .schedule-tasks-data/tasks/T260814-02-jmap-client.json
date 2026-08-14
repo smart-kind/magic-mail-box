@@ -7,5 +7,6 @@
   "prompt_file": ".schedule-tasks-data/prompts/T260814-02-jmap-client.md",
   "schedule": { "run_at": "2026-08-13T18:54:32Z" },
   "depends_on": ["T260814-01-project-scaffold"],
-  "agent": "kimi"
+  "agent": "kimi",
+  "model": "kimi-code/k3"
 }

@@ -7,5 +7,6 @@
   "prompt_file": ".schedule-tasks-data/prompts/T260814-06-host-demo.md",
   "schedule": { "run_at": "2026-08-13T20:54:32Z" },
   "depends_on": ["T260814-01-project-scaffold"],
-  "agent": "kimi"
+  "agent": "kimi",
+  "model": "kimi-code/k3"
 }

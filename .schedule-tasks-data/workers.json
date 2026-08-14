@@ -5,9 +5,9 @@
       "name": "david",
       "agent": "kimi",
       "models": {
-        "dev": "deepseek/deepseek-v4-flash",
-        "review": "kimi-code/k3-256k",
-        "mutation": "deepseek/deepseek-v4-flash",
+        "dev": "kimi-code/k3",
+        "review": "dashscope/qwen3.7-plus",
+        "mutation": "kimi-code/k3-256k",
         "test": "dashscope/qwen3.7-plus"
       }
     }
