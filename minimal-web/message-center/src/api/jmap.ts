@@ -25,6 +25,8 @@ export interface EmailSummary {
   from: EmailAddress[]
   receivedAt: string
   preview: string
+  /** JMAP keywords（如 `$seen`）；不含 `$seen` 即为未读。 */
+  keywords: Record<string, boolean>
 }
 
 /** 完整邮件内容（含正文文本）。 */
@@ -233,7 +235,7 @@ export function createJmapClient(options: JmapClientOptions): JmapClient {
     return result.ids
   }
 
-  const SUMMARY_PROPERTIES = ['id', 'subject', 'from', 'receivedAt', 'preview']
+  const SUMMARY_PROPERTIES = ['id', 'subject', 'from', 'receivedAt', 'preview', 'keywords']
 
   interface RawEmail {
     id: string
@@ -242,6 +244,7 @@ export function createJmapClient(options: JmapClientOptions): JmapClient {
     to?: EmailAddress[]
     receivedAt?: string
     preview?: string
+    keywords?: Record<string, boolean>
     textBody?: { partId: string }[]
     bodyValues?: Record<string, { value: string }>
   }
@@ -253,6 +256,7 @@ export function createJmapClient(options: JmapClientOptions): JmapClient {
       from: raw.from ?? [],
       receivedAt: raw.receivedAt ?? '',
       preview: raw.preview ?? '',
+      keywords: raw.keywords ?? {},
     }
   }
 
