@@ -10,9 +10,13 @@
 - `.schedule-tasks-data/reports/T260814-06-host-demo.md`（本报告）。
 
 ## Commits
-（rebase 到 origin/dev 之后的最终历史）
+（已 rebase 到 origin/dev，`git log origin/dev..HEAD --oneline`）
 ```
-<见 git log origin/dev..HEAD>
+9181cdc chore(message-center): add @types/node for test type-check; update task report
+d305fe6 report: task T260814-06-host-demo (done)
+9a1062d test(host-demo): jsdom tests driving real index.html against mocked JMAP server
+5f1f4ae fix(host-demo): strengthen demo password rule for Stalwart zxcvbn check; document file:// iframe caveat
+b9a934b feat(host-demo): single-file host admin page with user selector, batch create, iframe embed
 ```
 
 ## Gates verified
