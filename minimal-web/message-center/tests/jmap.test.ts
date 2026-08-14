@@ -389,6 +389,10 @@ describe('sendEmail', () => {
     expect(send.identityId).toBe('id-1')
     expect(send.emailId).toBe('#draft')
     expect(subArgs.onSuccessDestroyEmail).toEqual(['#send'])
+
+    // Identity/get 与 EmailSubmission/set 需要 submission 能力，
+    // 否则 Stalwart 报 unknownMethod（联调时发现的真实缺陷）。
+    expect(submissionCall.using).toContain('urn:ietf:params:jmap:submission')
   })
 
   it('throws when EmailSubmission/set reports notCreated', async () => {

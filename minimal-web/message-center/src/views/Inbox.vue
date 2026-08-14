@@ -1,6 +1,7 @@
 <script setup lang="ts">
-// 收件箱：消息列表页。启动时用当前用户凭证（user store，或 URL 参数 user/pass/server）
-// 自动完成 JMAP basic auth 并拉取收件箱。数据全部走 src/api/jmap.ts 封装。
+// 收件箱：消息列表页。启动时用当前用户凭证（user store / sessionStorage 恢复 /
+// URL 参数 user/pass/server）自动完成 JMAP basic auth 并拉取收件箱。
+// 数据全部走 src/api/jmap.ts 封装。
 // 见 minimal-web/docs/first-plan.md「消息列表」一节。
 import { onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'

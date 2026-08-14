@@ -1,12 +1,12 @@
 // TEST tests/inbox.test.ts — 验证收件箱列表页的凭证接入、渲染、跳转与删除
-// SCOPE: src/views/Inbox.vue（URL/store 凭证接入、listInbox 渲染：发送者/主题/时间/
-//        未读标记；点击跳转 /message/:id；删除后刷新并移除条目；空收件箱与错误提示）
+// SCOPE: src/views/Inbox.vue（URL/store/sessionStorage 凭证接入、listInbox 渲染：发送者/
+//        主题/时间/未读标记；点击跳转 /message/:id；删除后刷新并移除条目；空收件箱与错误提示）
 // ENV: jsdom（vitest）+ 内存路由；无网络——vi.mock('../src/api/jmap') 用内存假 client
 //      （listInbox/deleteEmails 为 vi.fn），createJmapClient 的参数被记录以验证凭证传递；
-//      每个用例前清空 user store（模块级单例）。
-// GATES: 通过则证明——无凭证时显示提示且不发起请求；凭证来自 URL query（user/pass/server）
-//        或 user store 并正确传给 createJmapClient；列表渲染发送者/主题/时间且未读项
-//        （无 $seen keyword）带 unread 样式；点击条目路由到 /message/:id；删除调用
+//      每个用例前清空 user store（模块级单例）与 sessionStorage。
+// GATES: 通过则证明——无凭证时显示提示且不发起请求；凭证来自 URL query（user/pass/server）、
+//        user store 或 sessionStorage 并正确传给 createJmapClient；列表渲染发送者/主题/时间
+//        且未读项（无 $seen keyword）带 unread 样式；点击条目路由到 /message/:id；删除调用
 //        deleteEmails([id])、条目从列表消失并重新拉取列表；空列表显示空状态；
 //        listInbox 抛错时显示错误信息。
 // RISK: jmap 模块被整体 mock，视图与真实 JMAP 协议的集成不在本测试覆盖范围
@@ -113,6 +113,18 @@ describe('Inbox view', () => {
       baseUrl: 'http://localhost:8082',
       username: 'demo007',
       password: 'Demo007!',
+    })
+  })
+
+  it('falls back to the persisted server when the URL has no server param', async () => {
+    // 站内跳转后刷新：query 里没有 server，应使用 sessionStorage 记忆的地址。
+    sessionStorage.setItem('mc.server', 'http://mail.persisted.test:8082')
+    useUserStore().setCredentials('demo008', 'Demo008!')
+    await mountInbox('/inbox')
+    expect(createJmapClient).toHaveBeenCalledWith({
+      baseUrl: 'http://mail.persisted.test:8082',
+      username: 'demo008',
+      password: 'Demo008!',
     })
   })
 
