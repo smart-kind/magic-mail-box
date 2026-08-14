@@ -72,6 +72,9 @@ type MethodResponse = [string, Record<string, unknown>, string]
 
 const JMAP_CORE = 'urn:ietf:params:jmap:core'
 const JMAP_MAIL = 'urn:ietf:params:jmap:mail'
+// EmailSubmission/Identity 方法需要 submission 能力，否则 Stalwart 报
+// unknownMethod（"requires capability urn:ietf:params:jmap:submission"）。
+const JMAP_SUBMISSION = 'urn:ietf:params:jmap:submission'
 
 export interface JmapClient {
   getSession(): Promise<JmapSession>
@@ -155,7 +158,7 @@ export function createJmapClient(options: JmapClientOptions): JmapClient {
     const session = await getSession()
     const accountId = await getAccountId()
     const body = {
-      using: [JMAP_CORE, JMAP_MAIL],
+      using: [JMAP_CORE, JMAP_MAIL, JMAP_SUBMISSION],
       methodCalls: methodCalls.map(([name, args, tag]) => [
         name,
         { accountId, ...args },
