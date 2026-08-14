@@ -1,0 +1,409 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>宿主 Demo — 消息中心管理</title>
+    <style>
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        font-family: -apple-system, "PingFang SC", "Segoe UI", sans-serif;
+        color: #1f2933;
+        background: #f5f6f8;
+      }
+      header {
+        background: #1f2933;
+        color: #fff;
+        padding: 12px 20px;
+        font-size: 15px;
+        font-weight: 600;
+      }
+      main { max-width: 960px; margin: 0 auto; padding: 16px 20px 40px; }
+      section {
+        background: #fff;
+        border: 1px solid #e4e7eb;
+        border-radius: 6px;
+        padding: 16px;
+        margin-bottom: 16px;
+      }
+      h2 { margin: 0 0 12px; font-size: 14px; color: #52606d; }
+      label { display: block; font-size: 13px; margin-bottom: 4px; color: #52606d; }
+      input, select {
+        width: 100%;
+        padding: 6px 8px;
+        font-size: 13px;
+        border: 1px solid #cbd2d9;
+        border-radius: 4px;
+      }
+      .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+      .field { margin-bottom: 10px; }
+      button {
+        padding: 7px 14px;
+        font-size: 13px;
+        border: 1px solid #1f6feb;
+        border-radius: 4px;
+        background: #1f6feb;
+        color: #fff;
+        cursor: pointer;
+      }
+      button:disabled { opacity: 0.5; cursor: default; }
+      button.secondary { background: #fff; color: #1f6feb; }
+      .actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+      #status {
+        margin-top: 10px;
+        font-size: 12px;
+        font-family: ui-monospace, Menlo, monospace;
+        white-space: pre-wrap;
+        max-height: 160px;
+        overflow-y: auto;
+        color: #3e4c59;
+      }
+      #status .err { color: #cf222e; }
+      #status .ok { color: #1a7f37; }
+      .hint { font-size: 12px; color: #7b8794; margin-top: 6px; }
+      #mc-frame {
+        width: 100%;
+        height: 560px;
+        border: 1px solid #cbd2d9;
+        border-radius: 4px;
+        background: #fff;
+      }
+    </style>
+  </head>
+  <body>
+    <header>宿主 Demo — 消息中心管理（多用户通信测试）</header>
+    <main>
+      <section>
+        <h2>连接设置</h2>
+        <div class="grid">
+          <div class="field">
+            <label for="cfg-server">Stalwart JMAP 服务器地址</label>
+            <input id="cfg-server" type="text" placeholder="http://localhost:8082" />
+          </div>
+          <div class="field">
+            <label for="cfg-mc-url">消息中心入口地址</label>
+            <input id="cfg-mc-url" type="text" placeholder="../message-center/dist/index.html" />
+          </div>
+          <div class="field">
+            <label for="cfg-admin-user">管理员账号</label>
+            <input id="cfg-admin-user" type="text" placeholder="admin@local.test" />
+          </div>
+          <div class="field">
+            <label for="cfg-admin-pass">管理员密码</label>
+            <input id="cfg-admin-pass" type="password" />
+          </div>
+        </div>
+        <p class="hint">
+          设置保存在本浏览器 localStorage。跨域调用需在 Stalwart 开启
+          <code>usePermissiveCors</code>（Settings › Network › HTTP › Security），否则浏览器会拦截请求。
+          消息中心开发模式地址一般为 <code>http://localhost:5173</code>，构建后为
+          <code>../message-center/dist/index.html</code>。
+        </p>
+      </section>
+
+      <section>
+        <h2>测试用户</h2>
+        <div class="field">
+          <label for="user-select">当前用户（本标签页身份）</label>
+          <select id="user-select">
+            <option value="">（尚未创建用户，请先点击下方按钮）</option>
+          </select>
+        </div>
+        <div class="actions">
+          <button id="btn-create">创建测试用户（demo001 ~ demo100）</button>
+        </div>
+        <p class="hint">
+          批量创建 demo001@域名 ~ demo100@域名，密码规则 <code>Demo001!</code> ~ <code>Demo100!</code>。
+          已存在的用户会被跳过（幂等，可重复点击）。
+        </p>
+        <div id="status"></div>
+      </section>
+
+      <section>
+        <h2>消息中心</h2>
+        <div class="actions">
+          <button id="btn-open">在 iframe 中打开消息中心</button>
+          <button id="btn-open-tab" class="secondary">在新标签页打开</button>
+        </div>
+        <p class="hint">
+          通过 URL 参数 <code>?username=&lt;邮箱&gt;&amp;password=&lt;密码&gt;</code>
+          传入当前选中用户凭证，消息中心启动时用该参数完成 JMAP Basic Auth 自动登录。
+          多开几个浏览器标签页、各选不同用户，即可模拟多人互发消息。
+        </p>
+        <p><iframe id="mc-frame" title="消息中心" hidden></iframe></p>
+      </section>
+    </main>
+
+    <script>
+      'use strict'
+
+      // ------------------------------------------------------------------
+      // 与 message-center 的契约（自动登录 URL 参数，见 docs/first-plan.md）：
+      //   <消息中心地址>?username=<完整邮箱>&password=<密码>
+      // message-center 的 Login 页启动时读取这两个参数做 JMAP Basic Auth。
+      // ------------------------------------------------------------------
+
+      const LS_KEYS = {
+        server: 'hostDemo.server',
+        mcUrl: 'hostDemo.mcUrl',
+        adminUser: 'hostDemo.adminUser',
+        adminPass: 'hostDemo.adminPass',
+        users: 'hostDemo.users',
+        selected: 'hostDemo.selectedUser',
+      }
+
+      const DEFAULTS = {
+        server: 'http://localhost:8082',
+        mcUrl: '../message-center/dist/index.html',
+        adminUser: 'admin@local.test',
+      }
+
+      const USER_COUNT = 100
+
+      /** 第 n 个（1 起）测试用户的本地部分：demo001 ~ demo100。 */
+      function demoName(n) {
+        return 'demo' + String(n).padStart(3, '0')
+      }
+
+      /** 统一密码规则：Demo001! ~ Demo100!。 */
+      function demoPassword(n) {
+        return 'Demo' + String(n).padStart(3, '0') + '!'
+      }
+
+      function demoUsers(domain) {
+        const users = []
+        for (let n = 1; n <= USER_COUNT; n++) {
+          users.push({
+            name: demoName(n),
+            email: demoName(n) + '@' + domain,
+            password: demoPassword(n),
+          })
+        }
+        return users
+      }
+
+      /** 拼接消息中心 URL，带上当前用户凭证（见文件顶部契约注释）。 */
+      function messageCenterUrl(base, user) {
+        const sep = base.includes('?') ? '&' : '?'
+        return (
+          base + sep +
+          'username=' + encodeURIComponent(user.email) +
+          '&password=' + encodeURIComponent(user.password)
+        )
+      }
+
+      function basicAuth(user, pass) {
+        return 'Basic ' + btoa(user + ':' + pass)
+      }
+
+      /** 发起一次 JMAP 请求，返回 methodResponses。 */
+      async function jmapCall(server, auth, methodCalls) {
+        const res = await fetch(server.replace(/\/+$/, '') + '/jmap/', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: auth,
+          },
+          body: JSON.stringify({
+            using: ['urn:ietf:params:jmap:core', 'urn:stalwart:jmap'],
+            methodCalls,
+          }),
+        })
+        if (!res.ok) {
+          throw new Error('JMAP HTTP ' + res.status + '（检查服务器地址与管理员凭证）')
+        }
+        const data = await res.json()
+        return data.methodResponses
+      }
+
+      /** 查询默认域名，返回 { id, name }。 */
+      async function fetchDomain(server, auth) {
+        const [queryResp] = await jmapCall(server, auth, [
+          ['x:Domain/query', { filter: {} }, 'c1'],
+        ])
+        if (queryResp[0] !== 'x:Domain/query' || !queryResp[1].ids.length) {
+          throw new Error('未查询到任何域名（请先在 Stalwart 完成初始化向导）')
+        }
+        const ids = queryResp[1].ids
+        const [getResp] = await jmapCall(server, auth, [
+          ['x:Domain/get', { ids }, 'c2'],
+        ])
+        const domain = getResp[1] && getResp[1].list && getResp[1].list[0]
+        if (!domain) throw new Error('无法获取域名详情')
+        return { id: domain.id, name: domain.name }
+      }
+
+      /**
+       * 构造批量创建用户的 x:Account/set 请求参数。
+       * Stalwart 约定：credentials 是以数字字符串为键的 map，
+       * 值为 { "@type": "Password", secret }。
+       */
+      function buildAccountSetArgs(users, domainId) {
+        const create = {}
+        for (const u of users) {
+          create[u.name] = {
+            '@type': 'User',
+            name: u.name,
+            domainId,
+            credentials: { 0: { '@type': 'Password', secret: u.password } },
+            roles: { '@type': 'User' },
+            permissions: { '@type': 'Inherit' },
+            quotas: {},
+            memberGroupIds: {},
+            aliases: {},
+            encryptionAtRest: { '@type': 'Disabled' },
+          }
+        }
+        return { create }
+      }
+
+      // ------------------------------------------------------------------
+      // UI  wiring
+      // ------------------------------------------------------------------
+
+      const $ = (id) => document.getElementById(id)
+      const statusEl = $('status')
+
+      function logStatus(msg, cls) {
+        const line = document.createElement('div')
+        if (cls) line.className = cls
+        line.textContent = msg
+        statusEl.appendChild(line)
+        statusEl.scrollTop = statusEl.scrollHeight
+      }
+
+      function loadConfig() {
+        $('cfg-server').value = localStorage.getItem(LS_KEYS.server) || DEFAULTS.server
+        $('cfg-mc-url').value = localStorage.getItem(LS_KEYS.mcUrl) || DEFAULTS.mcUrl
+        $('cfg-admin-user').value = localStorage.getItem(LS_KEYS.adminUser) || DEFAULTS.adminUser
+        $('cfg-admin-pass').value = localStorage.getItem(LS_KEYS.adminPass) || ''
+      }
+
+      function saveConfig() {
+        localStorage.setItem(LS_KEYS.server, $('cfg-server').value.trim())
+        localStorage.setItem(LS_KEYS.mcUrl, $('cfg-mc-url').value.trim())
+        localStorage.setItem(LS_KEYS.adminUser, $('cfg-admin-user').value.trim())
+        localStorage.setItem(LS_KEYS.adminPass, $('cfg-admin-pass').value)
+      }
+
+      function getUsers() {
+        try {
+          return JSON.parse(localStorage.getItem(LS_KEYS.users) || '[]')
+        } catch {
+          return []
+        }
+      }
+
+      function renderUserSelect() {
+        const users = getUsers()
+        const select = $('user-select')
+        const selected = localStorage.getItem(LS_KEYS.selected) || ''
+        select.innerHTML = ''
+        if (!users.length) {
+          const opt = document.createElement('option')
+          opt.value = ''
+          opt.textContent = '（尚未创建用户，请先点击下方按钮）'
+          select.appendChild(opt)
+          return
+        }
+        for (const u of users) {
+          const opt = document.createElement('option')
+          opt.value = u.email
+          opt.textContent = u.email
+          select.appendChild(opt)
+        }
+        select.value = users.some((u) => u.email === selected) ? selected : users[0].email
+        localStorage.setItem(LS_KEYS.selected, select.value)
+      }
+
+      function currentUser() {
+        const email = $('user-select').value
+        return getUsers().find((u) => u.email === email) || null
+      }
+
+      async function createTestUsers() {
+        const btn = $('btn-create')
+        btn.disabled = true
+        statusEl.innerHTML = ''
+        try {
+          saveConfig()
+          const server = $('cfg-server').value.trim()
+          if (!server) throw new Error('请填写 JMAP 服务器地址')
+          const auth = basicAuth($('cfg-admin-user').value.trim(), $('cfg-admin-pass').value)
+
+          logStatus('查询默认域名…')
+          const domain = await fetchDomain(server, auth)
+          logStatus('域名：' + domain.name + '（id: ' + domain.id + '）')
+
+          const users = demoUsers(domain.name)
+          logStatus('批量创建 ' + users.length + ' 个用户…')
+          const [setResp] = await jmapCall(server, auth, [
+            ['x:Account/set', buildAccountSetArgs(users, domain.id), 'c3'],
+          ])
+          if (setResp[0] === 'error') throw new Error('Account/set 失败：' + JSON.stringify(setResp[1]))
+
+          const created = Object.keys((setResp[1] && setResp[1].created) || {}).length
+          const notCreated = (setResp[1] && setResp[1].notCreated) || {}
+          const skipped = Object.keys(notCreated).filter(
+            (k) => notCreated[k].type === 'primaryKeyViolation',
+          ).length
+          const failed = Object.entries(notCreated).filter(
+            ([, v]) => v.type !== 'primaryKeyViolation',
+          )
+          logStatus('新建 ' + created + ' 个，已存在跳过 ' + skipped + ' 个。', 'ok')
+          for (const [k, v] of failed) {
+            logStatus('创建失败 ' + k + '：' + (v.description || v.type), 'err')
+          }
+          if (failed.length) throw new Error('部分用户创建失败，请查看上方日志')
+
+          localStorage.setItem(LS_KEYS.users, JSON.stringify(users))
+          renderUserSelect()
+          logStatus('用户列表已写入 localStorage，选择器已加载。', 'ok')
+        } catch (err) {
+          logStatus(
+            String(err && err.message ? err.message : err) +
+              (String(err).includes('Failed to fetch')
+                ? '（跨域被拦截？请在 Stalwart 开启 usePermissiveCors 后重启容器）'
+                : ''),
+            'err',
+          )
+        } finally {
+          btn.disabled = false
+        }
+      }
+
+      function openMessageCenter(inNewTab) {
+        const user = currentUser()
+        if (!user) {
+          logStatus('请先创建并选择一个测试用户。', 'err')
+          return
+        }
+        const base = $('cfg-mc-url').value.trim() || DEFAULTS.mcUrl
+        saveConfig()
+        const url = messageCenterUrl(base, user)
+        if (inNewTab) {
+          window.open(url, '_blank')
+          return
+        }
+        const frame = $('mc-frame')
+        frame.hidden = false
+        frame.src = url
+        logStatus('iframe 已加载：' + url, 'ok')
+      }
+
+      $('btn-create').addEventListener('click', createTestUsers)
+      $('btn-open').addEventListener('click', () => openMessageCenter(false))
+      $('btn-open-tab').addEventListener('click', () => openMessageCenter(true))
+      $('user-select').addEventListener('change', () => {
+        localStorage.setItem(LS_KEYS.selected, $('user-select').value)
+      })
+      for (const id of ['cfg-server', 'cfg-mc-url', 'cfg-admin-user', 'cfg-admin-pass']) {
+        $(id).addEventListener('change', saveConfig)
+      }
+
+      loadConfig()
+      renderUserSelect()
+    </script>
+  </body>
+</html>
