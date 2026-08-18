@@ -3,32 +3,155 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>宿主 Demo — 消息中心管理</title>
+    <title>宿主 Demo — 消息中心多用户测试</title>
     <style>
-      * { box-sizing: border-box; }
+      * { box-sizing: border-box; margin: 0; padding: 0; }
       body {
-        margin: 0;
         font-family: -apple-system, "PingFang SC", "Segoe UI", sans-serif;
         color: #1f2933;
         background: #f5f6f8;
+        height: 100vh;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
       }
-      header {
+
+      /* ── 顶部工具栏 ── */
+      .toolbar {
         background: #1f2933;
         color: #fff;
-        padding: 12px 20px;
-        font-size: 15px;
+        padding: 10px 16px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        flex-shrink: 0;
+      }
+      .toolbar-title {
+        font-size: 14px;
         font-weight: 600;
+        margin-right: auto;
       }
-      main { max-width: 960px; margin: 0 auto; padding: 16px 20px 40px; }
-      section {
+      .toolbar button {
+        padding: 6px 14px;
+        font-size: 13px;
+        border: 1px solid rgba(255,255,255,0.3);
+        border-radius: 4px;
+        background: rgba(255,255,255,0.1);
+        color: #fff;
+        cursor: pointer;
+        transition: background 0.15s;
+      }
+      .toolbar button:hover { background: rgba(255,255,255,0.2); }
+      .toolbar button.primary { background: #1f6feb; border-color: #1f6feb; }
+      .toolbar button.primary:hover { background: #1a5fd4; }
+
+      /* ── iframe 工作区 ── */
+      .workspace {
+        flex: 1;
+        display: flex;
+        gap: 1px;
+        background: #d1d5db;
+        overflow: hidden;
+      }
+      .workspace:empty::after {
+        content: '点击「打开消息中心」开始测试';
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 100%;
+        color: #9ca3af;
+        font-size: 15px;
+      }
+      .panel {
+        flex: 1;
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
         background: #fff;
-        border: 1px solid #e4e7eb;
-        border-radius: 6px;
-        padding: 16px;
-        margin-bottom: 16px;
       }
-      h2 { margin: 0 0 12px; font-size: 14px; color: #52606d; }
-      label { display: block; font-size: 13px; margin-bottom: 4px; color: #52606d; }
+      .panel-header {
+        background: #f0f1f3;
+        padding: 6px 10px;
+        font-size: 12px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        border-bottom: 1px solid #e4e7eb;
+        flex-shrink: 0;
+      }
+      .panel-header .user-tag {
+        font-weight: 600;
+        color: #1f6feb;
+      }
+      .panel-header .close-btn {
+        margin-left: auto;
+        width: 20px;
+        height: 20px;
+        border: none;
+        background: none;
+        color: #6b7280;
+        font-size: 16px;
+        cursor: pointer;
+        border-radius: 3px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0;
+      }
+      .panel-header .close-btn:hover { background: #e5e7eb; color: #dc2626; }
+      .panel iframe {
+        flex: 1;
+        width: 100%;
+        border: none;
+      }
+
+      /* ── 弹窗 ── */
+      .modal-overlay {
+        display: none;
+        position: fixed;
+        inset: 0;
+        background: rgba(0,0,0,0.4);
+        z-index: 100;
+        align-items: center;
+        justify-content: center;
+      }
+      .modal-overlay.open { display: flex; }
+      .modal {
+        background: #fff;
+        border-radius: 8px;
+        width: 560px;
+        max-height: 80vh;
+        overflow-y: auto;
+        box-shadow: 0 8px 30px rgba(0,0,0,0.15);
+      }
+      .modal-head {
+        padding: 14px 20px;
+        border-bottom: 1px solid #e4e7eb;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+      .modal-head h2 { font-size: 15px; margin: 0; }
+      .modal-head .close-modal {
+        border: none;
+        background: none;
+        font-size: 20px;
+        cursor: pointer;
+        color: #6b7280;
+        padding: 0 4px;
+      }
+      .modal-body { padding: 16px 20px; }
+      .modal-body h3 {
+        font-size: 13px;
+        color: #52606d;
+        margin: 0 0 10px;
+        padding-bottom: 6px;
+        border-bottom: 1px solid #f0f1f3;
+      }
+      .modal-body h3:not(:first-child) { margin-top: 20px; }
+
+      /* ── 表单 ── */
+      label { display: block; font-size: 12px; margin-bottom: 3px; color: #52606d; }
       input, select {
         width: 100%;
         padding: 6px 8px;
@@ -36,9 +159,11 @@
         border: 1px solid #cbd2d9;
         border-radius: 4px;
       }
-      .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
       .field { margin-bottom: 10px; }
-      button {
+      .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+      .hint { font-size: 11px; color: #7b8794; margin-top: 4px; }
+      .btn-row { display: flex; gap: 8px; margin-top: 10px; }
+      .btn-row button {
         padding: 7px 14px;
         font-size: 13px;
         border: 1px solid #1f6feb;
@@ -47,112 +172,167 @@
         color: #fff;
         cursor: pointer;
       }
-      button:disabled { opacity: 0.5; cursor: default; }
-      button.secondary { background: #fff; color: #1f6feb; }
-      .actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-      #status {
+      .btn-row button:disabled { opacity: 0.5; cursor: default; }
+      .btn-row button.secondary { background: #fff; color: #1f6feb; }
+
+      /* ── 用户列表 ── */
+      .user-list {
         margin-top: 10px;
+        max-height: 200px;
+        overflow-y: auto;
+        border: 1px solid #e4e7eb;
+        border-radius: 4px;
         font-size: 12px;
         font-family: ui-monospace, Menlo, monospace;
+      }
+      .user-list:empty::after {
+        content: '暂无用户，请先批量创建';
+        display: block;
+        padding: 12px;
+        text-align: center;
+        color: #9ca3af;
+      }
+      .user-list-item {
+        padding: 5px 10px;
+        border-bottom: 1px solid #f0f1f3;
+      }
+      .user-list-item:last-child { border-bottom: none; }
+
+      /* ── 状态日志 ── */
+      #status {
+        margin-top: 10px;
+        font-size: 11px;
+        font-family: ui-monospace, Menlo, monospace;
         white-space: pre-wrap;
-        max-height: 160px;
+        max-height: 120px;
         overflow-y: auto;
         color: #3e4c59;
+        border: 1px solid #e4e7eb;
+        border-radius: 4px;
+        padding: 8px;
       }
+      #status:empty { display: none; }
       #status .err { color: #cf222e; }
       #status .ok { color: #1a7f37; }
-      .hint { font-size: 12px; color: #7b8794; margin-top: 6px; }
-      #mc-frame {
-        width: 100%;
-        height: 560px;
-        border: 1px solid #cbd2d9;
-        border-radius: 4px;
-        background: #fff;
+
+      /* ── 打开消息中心弹窗 ── */
+      .pick-form {
+        display: flex;
+        gap: 8px;
+        align-items: flex-end;
+        margin-bottom: 12px;
       }
+      .pick-form .field { flex: 1; margin-bottom: 0; }
+      .pick-form button {
+        padding: 6px 16px;
+        font-size: 13px;
+        border: 1px solid #1f6feb;
+        border-radius: 4px;
+        background: #1f6feb;
+        color: #fff;
+        cursor: pointer;
+        white-space: nowrap;
+      }
+      .quick-users {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        margin-top: 10px;
+      }
+      .quick-user {
+        padding: 4px 10px;
+        font-size: 12px;
+        border: 1px solid #e4e7eb;
+        border-radius: 999px;
+        background: #fff;
+        cursor: pointer;
+        color: #4e5969;
+      }
+      .quick-user:hover { background: #f0f6ff; border-color: #1f6feb; color: #1f6feb; }
     </style>
   </head>
   <body>
-    <header>宿主 Demo — 消息中心管理（多用户通信测试）</header>
-    <main>
-      <section>
-        <h2>连接设置</h2>
-        <div class="grid">
-          <div class="field">
-            <label for="cfg-server">Stalwart JMAP 服务器地址</label>
-            <input id="cfg-server" type="text" placeholder="http://localhost:8082" />
-          </div>
-          <div class="field">
-            <label for="cfg-mc-url">消息中心入口地址</label>
-            <input id="cfg-mc-url" type="text" placeholder="../message-center/dist/index.html" />
-          </div>
-          <div class="field">
-            <label for="cfg-admin-user">管理员账号</label>
-            <input id="cfg-admin-user" type="text" placeholder="admin@local.test" />
-          </div>
-          <div class="field">
-            <label for="cfg-admin-pass">管理员密码</label>
-            <input id="cfg-admin-pass" type="password" />
-          </div>
-        </div>
-        <p class="hint">
-          设置保存在本浏览器 localStorage。跨域调用需在 Stalwart 开启
-          <code>usePermissiveCors</code>（Settings › Network › HTTP › Security），否则浏览器会拦截请求。
-          消息中心开发模式地址一般为 <code>http://localhost:5173</code>，构建后为
-          <code>../message-center/dist/index.html</code>。
-        </p>
-      </section>
+    <!-- ── 顶部工具栏 ── -->
+    <div class="toolbar">
+      <span class="toolbar-title">消息中心 — 多用户测试</span>
+      <button id="btn-config">环境配置</button>
+      <button id="btn-open-mc" class="primary">打开消息中心</button>
+    </div>
 
-      <section>
-        <h2>测试用户</h2>
-        <div class="field">
-          <label for="user-select">当前用户（本标签页身份）</label>
-          <select id="user-select">
-            <option value="">（尚未创建用户，请先点击下方按钮）</option>
-          </select>
-        </div>
-        <div class="actions">
-          <button id="btn-create">创建测试用户（demo001 ~ demo100）</button>
-        </div>
-        <p class="hint">
-          批量创建 demo001@域名 ~ demo100@域名，密码规则 <code>Demo001!Mc7</code> ~ <code>Demo100!Mc7</code>。
-          已存在的用户会被跳过（幂等，可重复点击）。
-        </p>
-        <div id="status"></div>
-      </section>
+    <!-- ── iframe 工作区 ── -->
+    <div class="workspace" id="workspace"></div>
 
-      <section>
-        <h2>消息中心</h2>
-        <div class="actions">
-          <button id="btn-open">在 iframe 中打开消息中心</button>
-          <button id="btn-open-tab" class="secondary">在新标签页打开</button>
+    <!-- ── 环境配置弹窗 ── -->
+    <div class="modal-overlay" id="modal-config">
+      <div class="modal">
+        <div class="modal-head">
+          <h2>环境配置</h2>
+          <button class="close-modal" data-close="modal-config">&times;</button>
         </div>
-        <p class="hint">
-          通过 hash query 参数 <code>#/inbox?user=&lt;邮箱&gt;&amp;pass=&lt;密码&gt;&amp;server=&lt;JMAP 地址&gt;</code>
-          传入当前选中用户凭证与服务器地址，消息中心启动时用该参数完成 JMAP Basic Auth 自动登录
-          （参数名与 message-center 的 <code>Inbox.vue</code> 读取逻辑一致）。
-          多开几个浏览器标签页、各选不同用户，即可模拟多人互发消息。
-          注意：以 <code>file://</code> 直接打开本页时，创建用户等 JMAP 功能可用，
-          但浏览器会拦截 iframe 内 <code>file://</code> 构建产物的 JS/CSS；
-          建议在 <code>minimal-web/</code> 下起一个静态服务（如
-          <code>python3 -m http.server</code>）再访问 <code>/host-demo/</code>，
-          或将消息中心地址指向 vite 开发服务器（<code>http://localhost:5173</code>）。
-        </p>
-        <p><iframe id="mc-frame" title="消息中心" hidden></iframe></p>
-      </section>
-    </main>
+        <div class="modal-body">
+          <h3>连接设置</h3>
+          <div class="grid-2">
+            <div class="field">
+              <label for="cfg-server">JMAP 服务器地址</label>
+              <input id="cfg-server" type="text" placeholder="http://localhost:8082" />
+            </div>
+            <div class="field">
+              <label for="cfg-mc-url">消息中心入口地址</label>
+              <input id="cfg-mc-url" type="text" placeholder="../message-center/dist/index.html" />
+            </div>
+            <div class="field">
+              <label for="cfg-admin-user">管理员账号</label>
+              <input id="cfg-admin-user" type="text" placeholder="admin@local.test" />
+            </div>
+            <div class="field">
+              <label for="cfg-admin-pass">管理员密码</label>
+              <input id="cfg-admin-pass" type="password" />
+            </div>
+          </div>
+          <p class="hint">管理员凭证用于消息中心自动创建新用户。设置保存在 localStorage。</p>
+          <div class="btn-row">
+            <button id="btn-save-config">保存设置</button>
+          </div>
+
+          <h3>测试用户（可选，批量预建）</h3>
+          <p class="hint">消息中心会自动创建用户，此处仅用于批量预建 demo 用户做测试。</p>
+          <div class="btn-row">
+            <button id="btn-create">批量创建 demo001 ~ demo100</button>
+            <button id="btn-list-users" class="secondary">刷新用户列表</button>
+          </div>
+          <div class="user-list" id="user-list"></div>
+          <div id="status"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── 打开消息中心弹窗 ── -->
+    <div class="modal-overlay" id="modal-pick-user">
+      <div class="modal">
+        <div class="modal-head">
+          <h2>打开消息中心</h2>
+          <button class="close-modal" data-close="modal-pick-user">&times;</button>
+        </div>
+        <div class="modal-body">
+          <div class="pick-form">
+            <div class="field">
+              <label for="pick-username">用户名</label>
+              <input id="pick-username" type="text" placeholder="输入用户名，如 alice" />
+            </div>
+            <button id="btn-pick-open">打开</button>
+          </div>
+          <p class="hint">用户不存在时会自动创建。最多同时打开 4 个窗口。</p>
+
+          <div class="quick-users" id="quick-users"></div>
+        </div>
+      </div>
+    </div>
 
     <script>
       'use strict'
 
-      // ------------------------------------------------------------------
-      // 与 message-center 的契约（自动登录 URL 参数，与 src/views/Inbox.vue
-      // 的 route.query 读取逻辑保持一致）：
-      //   <消息中心地址>#/inbox?user=<完整邮箱>&pass=<密码>&server=<JMAP 服务器地址>
-      // message-center 用 hash 路由（createWebHashHistory），因此参数必须放在
-      // hash 的 query 部分（#/inbox?...），放在 index.html?... 里 vue-router
-      // 读不到。message-center 启动时读取 user/pass 做 JMAP Basic Auth 自动登录，
-      // server 可选（缺省 http://localhost:8082）。
-      // ------------------------------------------------------------------
+      // URL 格式：<消息中心地址>#/inbox?user=<用户名>&server=<JMAP地址>
+      // 只传用户名，密码由消息中心自动派生。
 
       const LS_KEYS = {
         server: 'hostDemo.server',
@@ -160,7 +340,15 @@
         adminUser: 'hostDemo.adminUser',
         adminPass: 'hostDemo.adminPass',
         users: 'hostDemo.users',
-        selected: 'hostDemo.selectedUser',
+        domain: 'hostDemo.domain',
+      }
+
+      // 消息中心读取的共享 localStorage 键
+      const MC_LS_KEYS = {
+        server: 'mc.server',
+        adminUser: 'mc.adminUser',
+        adminPass: 'mc.adminPass',
+        domain: 'mc.domain',
       }
 
       const DEFAULTS = {
@@ -170,122 +358,81 @@
       }
 
       const USER_COUNT = 100
+      const MAX_PANELS = 4
 
-      /** 第 n 个（1 起）测试用户的本地部分：demo001 ~ demo100。 */
-      function demoName(n) {
-        return 'demo' + String(n).padStart(3, '0')
-      }
+      // ── 工具函数 ──
 
-      /**
-       * 统一密码规则：Demo001!Mc7 ~ Demo100!Mc7。
-       * 注意：计划文档中的 `DemoNNN!` 会被 Stalwart 的密码强度检查
-       * （zxcvbn）拒绝，因此追加固定后缀 `Mc7` 使其通过。
-       */
-      function demoPassword(n) {
-        return 'Demo' + String(n).padStart(3, '0') + '!Mc7'
-      }
+      function demoName(n) { return 'demo' + String(n).padStart(3, '0') }
+      function demoPassword(n) { return 'Demo' + String(n).padStart(3, '0') + '!Mc7' }
 
       function demoUsers(domain) {
         const users = []
         for (let n = 1; n <= USER_COUNT; n++) {
-          users.push({
-            name: demoName(n),
-            email: demoName(n) + '@' + domain,
-            password: demoPassword(n),
-          })
+          users.push({ name: demoName(n), email: demoName(n) + '@' + domain, password: demoPassword(n) })
         }
         return users
       }
 
-      /** 拼接消息中心 URL，hash query 带上当前用户凭证与服务器地址（见文件顶部契约注释）。 */
-      function messageCenterUrl(base, user, server) {
+      /** 生成消息中心 URL：传 user（用户名）、server，以及 admin 凭证供自动创建用户。 */
+      function messageCenterUrl(base, username, server, adminUser, adminPass) {
         const hashBase = base.replace(/#.*$/, '')
-        return (
-          hashBase +
-          '#/inbox?user=' + encodeURIComponent(user.email) +
-          '&pass=' + encodeURIComponent(user.password) +
-          '&server=' + encodeURIComponent(server)
-        )
+        let url = hashBase + '#/inbox?user=' + encodeURIComponent(username)
+          + '&server=' + encodeURIComponent(server)
+        if (adminUser) url += '&adminUser=' + encodeURIComponent(adminUser)
+        if (adminPass) url += '&adminPass=' + encodeURIComponent(adminPass)
+        return url
       }
 
-      function basicAuth(user, pass) {
-        return 'Basic ' + btoa(user + ':' + pass)
-      }
+      function basicAuth(user, pass) { return 'Basic ' + btoa(user + ':' + pass) }
 
-      /** 发起一次 JMAP 请求，返回 methodResponses。 */
       async function jmapCall(server, auth, methodCalls) {
         const res = await fetch(server.replace(/\/+$/, '') + '/jmap/', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: auth,
-          },
+          headers: { 'Content-Type': 'application/json', Authorization: auth },
           body: JSON.stringify({
             using: ['urn:ietf:params:jmap:core', 'urn:stalwart:jmap'],
             methodCalls,
           }),
         })
-        if (!res.ok) {
-          throw new Error('JMAP HTTP ' + res.status + '（检查服务器地址与管理员凭证）')
-        }
-        const data = await res.json()
-        return data.methodResponses
+        if (!res.ok) throw new Error('JMAP HTTP ' + res.status)
+        return (await res.json()).methodResponses
       }
 
-      /** 查询默认域名，返回 { id, name }。 */
       async function fetchDomain(server, auth) {
-        const [queryResp] = await jmapCall(server, auth, [
-          ['x:Domain/query', { filter: {} }, 'c1'],
-        ])
-        if (queryResp[0] !== 'x:Domain/query' || !queryResp[1].ids.length) {
-          throw new Error('未查询到任何域名（请先在 Stalwart 完成初始化向导）')
-        }
-        const ids = queryResp[1].ids
-        const [getResp] = await jmapCall(server, auth, [
-          ['x:Domain/get', { ids }, 'c2'],
-        ])
-        const domain = getResp[1] && getResp[1].list && getResp[1].list[0]
-        if (!domain) throw new Error('无法获取域名详情')
-        return { id: domain.id, name: domain.name }
+        const [qr] = await jmapCall(server, auth, [['x:Domain/query', { filter: {} }, 'c1']])
+        if (qr[0] !== 'x:Domain/query' || !qr[1].ids.length)
+          throw new Error('未查询到域名（请先完成 Stalwart 初始化向导）')
+        const [gr] = await jmapCall(server, auth, [['x:Domain/get', { ids: qr[1].ids }, 'c2']])
+        const d = gr[1] && gr[1].list && gr[1].list[0]
+        if (!d) throw new Error('无法获取域名详情')
+        return { id: d.id, name: d.name }
       }
 
-      /**
-       * 构造批量创建用户的 x:Account/set 请求参数。
-       * Stalwart 约定：credentials 是以数字字符串为键的 map，
-       * 值为 { "@type": "Password", secret }。
-       */
       function buildAccountSetArgs(users, domainId) {
         const create = {}
         for (const u of users) {
           create[u.name] = {
-            '@type': 'User',
-            name: u.name,
-            domainId,
+            '@type': 'User', name: u.name, domainId,
             credentials: { 0: { '@type': 'Password', secret: u.password } },
-            roles: { '@type': 'User' },
-            permissions: { '@type': 'Inherit' },
-            quotas: {},
-            memberGroupIds: {},
-            aliases: {},
+            roles: { '@type': 'User' }, permissions: { '@type': 'Inherit' },
+            quotas: {}, memberGroupIds: {}, aliases: {},
             encryptionAtRest: { '@type': 'Disabled' },
           }
         }
         return { create }
       }
 
-      // ------------------------------------------------------------------
-      // UI  wiring
-      // ------------------------------------------------------------------
+      // ── DOM 工具 ──
 
       const $ = (id) => document.getElementById(id)
-      const statusEl = $('status')
 
-      function logStatus(msg, cls) {
-        const line = document.createElement('div')
-        if (cls) line.className = cls
-        line.textContent = msg
-        statusEl.appendChild(line)
-        statusEl.scrollTop = statusEl.scrollHeight
+      function getConfig() {
+        return {
+          server: $('cfg-server').value.trim() || DEFAULTS.server,
+          mcUrl: $('cfg-mc-url').value.trim() || DEFAULTS.mcUrl,
+          adminUser: $('cfg-admin-user').value.trim() || DEFAULTS.adminUser,
+          adminPass: $('cfg-admin-pass').value,
+        }
       }
 
       function loadConfig() {
@@ -296,130 +443,219 @@
       }
 
       function saveConfig() {
-        localStorage.setItem(LS_KEYS.server, $('cfg-server').value.trim())
-        localStorage.setItem(LS_KEYS.mcUrl, $('cfg-mc-url').value.trim())
-        localStorage.setItem(LS_KEYS.adminUser, $('cfg-admin-user').value.trim())
-        localStorage.setItem(LS_KEYS.adminPass, $('cfg-admin-pass').value)
+        const c = getConfig()
+        // host-demo 自身的键
+        localStorage.setItem(LS_KEYS.server, c.server)
+        localStorage.setItem(LS_KEYS.mcUrl, c.mcUrl)
+        localStorage.setItem(LS_KEYS.adminUser, c.adminUser)
+        localStorage.setItem(LS_KEYS.adminPass, c.adminPass)
+        // 消息中心读取的共享键
+        localStorage.setItem(MC_LS_KEYS.server, c.server)
+        localStorage.setItem(MC_LS_KEYS.adminUser, c.adminUser)
+        localStorage.setItem(MC_LS_KEYS.adminPass, c.adminPass)
       }
 
       function getUsers() {
-        try {
-          return JSON.parse(localStorage.getItem(LS_KEYS.users) || '[]')
-        } catch {
-          return []
-        }
+        try { return JSON.parse(localStorage.getItem(LS_KEYS.users) || '[]') }
+        catch { return [] }
       }
 
-      function renderUserSelect() {
+      // ── 状态日志 ──
+
+      const statusEl = $('status')
+      function logStatus(msg, cls) {
+        const line = document.createElement('div')
+        if (cls) line.className = cls
+        line.textContent = msg
+        statusEl.appendChild(line)
+        statusEl.scrollTop = statusEl.scrollHeight
+      }
+
+      // ── 用户列表渲染 ──
+
+      function renderUserList() {
+        const list = $('user-list')
         const users = getUsers()
-        const select = $('user-select')
-        const selected = localStorage.getItem(LS_KEYS.selected) || ''
-        select.innerHTML = ''
-        if (!users.length) {
-          const opt = document.createElement('option')
-          opt.value = ''
-          opt.textContent = '（尚未创建用户，请先点击下方按钮）'
-          select.appendChild(opt)
-          return
-        }
+        list.innerHTML = ''
         for (const u of users) {
-          const opt = document.createElement('option')
-          opt.value = u.email
-          opt.textContent = u.email
-          select.appendChild(opt)
+          const item = document.createElement('div')
+          item.className = 'user-list-item'
+          item.textContent = u.name
+          list.appendChild(item)
         }
-        select.value = users.some((u) => u.email === selected) ? selected : users[0].email
-        localStorage.setItem(LS_KEYS.selected, select.value)
       }
 
-      function currentUser() {
-        const email = $('user-select').value
-        return getUsers().find((u) => u.email === email) || null
+      function renderQuickUsers() {
+        const container = $('quick-users')
+        container.innerHTML = ''
+        const users = getUsers()
+        for (const u of users.slice(0, 20)) {
+          const btn = document.createElement('button')
+          btn.className = 'quick-user'
+          btn.textContent = u.name
+          btn.addEventListener('click', () => {
+            openPanel(u.name)
+            closeModal('modal-pick-user')
+          })
+          container.appendChild(btn)
+        }
       }
 
-      async function createTestUsers() {
+      // ── 弹窗控制 ──
+
+      function openModal(id) { $(id).classList.add('open') }
+      function closeModal(id) { $(id).classList.remove('open') }
+
+      document.querySelectorAll('.close-modal').forEach(btn => {
+        btn.addEventListener('click', () => closeModal(btn.dataset.close))
+      })
+      document.querySelectorAll('.modal-overlay').forEach(overlay => {
+        overlay.addEventListener('click', (e) => {
+          if (e.target === overlay) closeModal(overlay.id)
+        })
+      })
+
+      // ── 环境配置弹窗 ──
+
+      $('btn-config').addEventListener('click', () => {
+        renderUserList()
+        statusEl.innerHTML = ''
+        openModal('modal-config')
+      })
+
+      $('btn-save-config').addEventListener('click', () => {
+        saveConfig()
+        logStatus('设置已保存', 'ok')
+      })
+
+      for (const id of ['cfg-server', 'cfg-mc-url', 'cfg-admin-user', 'cfg-admin-pass']) {
+        $(id).addEventListener('change', saveConfig)
+      }
+
+      // ── 批量创建用户 ──
+
+      $('btn-create').addEventListener('click', async () => {
         const btn = $('btn-create')
         btn.disabled = true
         statusEl.innerHTML = ''
         try {
           saveConfig()
-          const server = $('cfg-server').value.trim()
-          if (!server) throw new Error('请填写 JMAP 服务器地址')
-          const auth = basicAuth($('cfg-admin-user').value.trim(), $('cfg-admin-pass').value)
+          const c = getConfig()
+          if (!c.server) throw new Error('请填写服务器地址')
+          if (!c.adminPass) throw new Error('请填写管理员密码')
+          const auth = basicAuth(c.adminUser, c.adminPass)
 
-          logStatus('查询默认域名…')
-          const domain = await fetchDomain(server, auth)
-          logStatus('域名：' + domain.name + '（id: ' + domain.id + '）')
+          logStatus('查询域名…')
+          const domain = await fetchDomain(c.server, auth)
+          logStatus('域名：' + domain.name)
+
+          // 缓存域名供消息中心使用
+          localStorage.setItem(LS_KEYS.domain, domain.name)
+          localStorage.setItem(MC_LS_KEYS.domain, domain.name)
 
           const users = demoUsers(domain.name)
           logStatus('批量创建 ' + users.length + ' 个用户…')
-          const [setResp] = await jmapCall(server, auth, [
+          const [setResp] = await jmapCall(c.server, auth, [
             ['x:Account/set', buildAccountSetArgs(users, domain.id), 'c3'],
           ])
           if (setResp[0] === 'error') throw new Error('Account/set 失败：' + JSON.stringify(setResp[1]))
 
           const created = Object.keys((setResp[1] && setResp[1].created) || {}).length
           const notCreated = (setResp[1] && setResp[1].notCreated) || {}
-          const skipped = Object.keys(notCreated).filter(
-            (k) => notCreated[k].type === 'primaryKeyViolation',
-          ).length
-          const failed = Object.entries(notCreated).filter(
-            ([, v]) => v.type !== 'primaryKeyViolation',
-          )
-          logStatus('新建 ' + created + ' 个，已存在跳过 ' + skipped + ' 个。', 'ok')
-          for (const [k, v] of failed) {
-            logStatus('创建失败 ' + k + '：' + (v.description || v.type), 'err')
-          }
-          if (failed.length) throw new Error('部分用户创建失败，请查看上方日志')
+          const skipped = Object.keys(notCreated).filter(k => notCreated[k].type === 'primaryKeyViolation').length
+          const failed = Object.entries(notCreated).filter(([, v]) => v.type !== 'primaryKeyViolation')
+
+          logStatus('新建 ' + created + ' 个，已存在跳过 ' + skipped + ' 个', 'ok')
+          for (const [k, v] of failed) logStatus('失败 ' + k + '：' + (v.description || v.type), 'err')
+          if (failed.length) throw new Error('部分用户创建失败')
 
           localStorage.setItem(LS_KEYS.users, JSON.stringify(users))
-          renderUserSelect()
-          logStatus('用户列表已写入 localStorage，选择器已加载。', 'ok')
+          renderUserList()
+          logStatus('完成', 'ok')
         } catch (err) {
-          logStatus(
-            String(err && err.message ? err.message : err) +
-              (String(err).includes('Failed to fetch')
-                ? '（跨域被拦截？请在 Stalwart 开启 usePermissiveCors 后重启容器）'
-                : ''),
-            'err',
-          )
+          logStatus(String(err.message || err) +
+            (String(err).includes('Failed to fetch') ? '（检查 CORS 设置）' : ''), 'err')
         } finally {
           btn.disabled = false
         }
-      }
-
-      function openMessageCenter(inNewTab) {
-        const user = currentUser()
-        if (!user) {
-          logStatus('请先创建并选择一个测试用户。', 'err')
-          return
-        }
-        const base = $('cfg-mc-url').value.trim() || DEFAULTS.mcUrl
-        const server = $('cfg-server').value.trim() || DEFAULTS.server
-        saveConfig()
-        const url = messageCenterUrl(base, user, server)
-        if (inNewTab) {
-          window.open(url, '_blank')
-          return
-        }
-        const frame = $('mc-frame')
-        frame.hidden = false
-        frame.src = url
-        logStatus('iframe 已加载：' + url, 'ok')
-      }
-
-      $('btn-create').addEventListener('click', createTestUsers)
-      $('btn-open').addEventListener('click', () => openMessageCenter(false))
-      $('btn-open-tab').addEventListener('click', () => openMessageCenter(true))
-      $('user-select').addEventListener('change', () => {
-        localStorage.setItem(LS_KEYS.selected, $('user-select').value)
       })
-      for (const id of ['cfg-server', 'cfg-mc-url', 'cfg-admin-user', 'cfg-admin-pass']) {
-        $(id).addEventListener('change', saveConfig)
+
+      $('btn-list-users').addEventListener('click', () => {
+        renderUserList()
+        const n = getUsers().length
+        logStatus(n ? '已加载 ' + n + ' 个用户' : '暂无用户', n ? 'ok' : 'err')
+      })
+
+      // ── 打开消息中心 ──
+
+      $('btn-open-mc').addEventListener('click', () => {
+        const panels = document.querySelectorAll('.panel')
+        if (panels.length >= MAX_PANELS) {
+          alert('最多同时打开 ' + MAX_PANELS + ' 个消息中心窗口，请先关闭一些')
+          return
+        }
+        renderQuickUsers()
+        $('pick-username').value = ''
+        $('pick-username').focus()
+        openModal('modal-pick-user')
+      })
+
+      // 输入用户名直接打开
+      $('btn-pick-open').addEventListener('click', () => {
+        const username = $('pick-username').value.trim()
+        if (!username) { alert('请输入用户名'); return }
+        openPanel(username)
+        closeModal('modal-pick-user')
+      })
+
+      // 回车打开
+      $('pick-username').addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault()
+          $('btn-pick-open').click()
+        }
+      })
+
+      // ── iframe 面板管理 ──
+
+      function openPanel(username) {
+        const panels = document.querySelectorAll('.panel')
+        if (panels.length >= MAX_PANELS) {
+          alert('最多同时打开 ' + MAX_PANELS + ' 个窗口')
+          return
+        }
+        const c = getConfig()
+        // 把管理员凭证和域名通过 URL 传给 iframe（跨域 localStorage 不共享）
+        const domain = localStorage.getItem(LS_KEYS.domain) || ''
+        const url = messageCenterUrl(c.mcUrl, username, c.server, c.adminUser, c.adminPass)
+          + (domain ? '&domain=' + encodeURIComponent(domain) : '')
+
+        const panel = document.createElement('div')
+        panel.className = 'panel'
+
+        const header = document.createElement('div')
+        header.className = 'panel-header'
+        header.innerHTML = '<span>消息中心</span> <span class="user-tag">' + username + '</span>'
+
+        const closeBtn = document.createElement('button')
+        closeBtn.className = 'close-btn'
+        closeBtn.title = '关闭'
+        closeBtn.textContent = '×'
+        closeBtn.addEventListener('click', () => panel.remove())
+        header.appendChild(closeBtn)
+
+        const iframe = document.createElement('iframe')
+        iframe.src = url
+        iframe.title = username
+
+        panel.appendChild(header)
+        panel.appendChild(iframe)
+        $('workspace').appendChild(panel)
       }
+
+      // ── 初始化 ──
 
       loadConfig()
-      renderUserSelect()
     </script>
   </body>
 </html>

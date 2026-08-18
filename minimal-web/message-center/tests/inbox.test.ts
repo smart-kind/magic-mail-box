@@ -31,6 +31,7 @@ vi.mock('../src/api/jmap', async (importOriginal) => {
     createJmapClient: vi.fn(() => ({
       listInbox: mocks.listInbox,
       deleteEmails: mocks.deleteEmails,
+      getSession: vi.fn().mockResolvedValue({}),
     })),
   }
 })
@@ -53,7 +54,7 @@ const READ: EmailSummary = {
   keywords: { $seen: true },
 }
 
-async function mountInbox(path = '/inbox?user=demo001&pass=Demo001!') {
+async function mountInbox(path = '/inbox?user=demo001') {
   const testRouter = createRouter({
     history: createMemoryHistory(),
     routes: [
@@ -79,23 +80,23 @@ beforeEach(() => {
 describe('Inbox view', () => {
   it('shows a hint and does not call the API when credentials are missing', async () => {
     const { wrapper } = await mountInbox('/inbox')
-    expect(wrapper.text()).toContain('未提供用户凭证')
+    expect(wrapper.text()).toContain('未提供用户名')
     expect(createJmapClient).not.toHaveBeenCalled()
   })
 
   it('authenticates from URL query and renders sender, subject, time, unread mark', async () => {
-    const { wrapper } = await mountInbox('/inbox?user=demo001&pass=Demo001!&server=http://mail.test:8082')
+    const { wrapper } = await mountInbox('/inbox?user=demo001&server=http://mail.test:8082')
 
     expect(createJmapClient).toHaveBeenCalledWith({
       baseUrl: 'http://mail.test:8082',
       username: 'demo001',
-      password: 'Demo001!',
+      password: 'Demo001!Mc7',
     })
     expect(useUserStore().state.loggedIn).toBe(true)
 
     const text = wrapper.text()
     expect(text).toContain('Alice')
-    expect(text).toContain('bob@local.test')
+    expect(text).toContain('bob')
     expect(text).toContain('系统通知')
     expect(text).toContain('Re: 你好')
     expect(text).toContain('2026')
@@ -107,24 +108,24 @@ describe('Inbox view', () => {
   })
 
   it('falls back to the default server and reuses store credentials', async () => {
-    useUserStore().setCredentials('demo007', 'Demo007!')
+    useUserStore().setCredentials('demo007', '904244705!Mc7')
     await mountInbox('/inbox')
     expect(createJmapClient).toHaveBeenCalledWith({
       baseUrl: 'http://localhost:8082',
       username: 'demo007',
-      password: 'Demo007!',
+      password: '904244705!Mc7',
     })
   })
 
   it('falls back to the persisted server when the URL has no server param', async () => {
     // 站内跳转后刷新：query 里没有 server，应使用 sessionStorage 记忆的地址。
     sessionStorage.setItem('mc.server', 'http://mail.persisted.test:8082')
-    useUserStore().setCredentials('demo008', 'Demo008!')
+    useUserStore().setCredentials('demo008', '673952526!Mc7')
     await mountInbox('/inbox')
     expect(createJmapClient).toHaveBeenCalledWith({
       baseUrl: 'http://mail.persisted.test:8082',
       username: 'demo008',
-      password: 'Demo008!',
+      password: '673952526!Mc7',
     })
   })
 

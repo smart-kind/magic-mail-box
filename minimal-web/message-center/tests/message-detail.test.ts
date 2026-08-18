@@ -106,7 +106,7 @@ describe('MessageDetail view', () => {
     const text = wrapper.text()
     expect(text).toContain('会议纪要')
     expect(text).toContain('Alice')
-    expect(text).toContain('demo001@local.test')
+    expect(text).toContain('demo001')
     expect(text).toContain('2026')
     expect(text).toContain('明天上午十点开会')
   })

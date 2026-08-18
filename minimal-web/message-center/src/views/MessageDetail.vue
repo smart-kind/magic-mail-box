@@ -71,10 +71,14 @@ async function load() {
 
   loading.value = true
   try {
-    const list = await makeClient().getEmails([messageId.value])
+    const client = makeClient()
+    const list = await client.getEmails([messageId.value])
     email.value = list[0] ?? null
     if (!email.value) {
       error.value = '没有找到这条消息，它可能已被删除。'
+    } else {
+      // 打开消息后标记已读
+      try { await client.markAsRead([messageId.value]) } catch { /* 静默 */ }
     }
   } catch (err) {
     error.value = err instanceof JmapError ? err.message : `加载消息失败: ${(err as Error).message}`
@@ -91,7 +95,12 @@ function formatTime(iso: string): string {
 
 function formatAddresses(list: EmailAddress[]): string {
   if (!list.length) return '未知'
-  return list.map((a) => a.name || a.email).join('、')
+  return list.map((a) => {
+    if (a.name) return a.name
+    // 从邮箱地址提取用户名（@ 前面部分）
+    const at = a.email.indexOf('@')
+    return at > 0 ? a.email.slice(0, at) : a.email
+  }).join('、')
 }
 
 function backToInbox() {

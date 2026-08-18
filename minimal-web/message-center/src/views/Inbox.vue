@@ -1,12 +1,10 @@
 <script setup lang="ts">
-// 收件箱：消息列表页。启动时用当前用户凭证（user store / sessionStorage 恢复 /
-// URL 参数 user/pass/server）自动完成 JMAP basic auth 并拉取收件箱。
-// 数据全部走 src/api/jmap.ts 封装。
-// 见 minimal-web/docs/first-plan.md「消息列表」一节。
+// 收件箱：消息列表页。URL 只需 user 参数（用户名），密码自动派生，
+// 用户不存在时自动创建。数据全部走 src/api/jmap.ts 封装。
 import { onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { createJmapClient, JmapError, type EmailSummary } from '../api/jmap'
-import { persistedServer, persistServer, useUserStore } from '../stores/user'
+import { getServerUrl, loginWithUsername, persistedServer, persistServer, useUserStore } from '../stores/user'
 
 /** docker-compose.yml 把 Stalwart 的 8080 映射到宿主 8082。 */
 const DEFAULT_SERVER = 'http://localhost:8082'
@@ -18,18 +16,20 @@ const user = useUserStore()
 const emails = ref<EmailSummary[]>([])
 const loading = ref(false)
 const error = ref('')
-/** 正在删除的邮件 id，用于禁用对应按钮。 */
 const deletingId = ref<string | null>(null)
-/** 缺少凭证（宿主未传参且 store 为空）时为 true。 */
 const missingCredentials = ref(false)
 
 function queryString(value: unknown): string {
   return typeof value === 'string' ? value : ''
 }
 
+function serverUrl(): string {
+  return queryString(route.query.server) || persistedServer() || getServerUrl() || DEFAULT_SERVER
+}
+
 function makeClient() {
   return createJmapClient({
-    baseUrl: queryString(route.query.server) || persistedServer() || DEFAULT_SERVER,
+    baseUrl: serverUrl(),
     username: user.state.username,
     password: user.state.password,
   })
@@ -39,22 +39,32 @@ async function load() {
   error.value = ''
   missingCredentials.value = false
 
-  if (!user.state.loggedIn) {
-    const username = queryString(route.query.user)
-    const password = queryString(route.query.pass)
-    if (!username || !password) {
-      missingCredentials.value = true
+  // URL 只有 user 参数（用户名），密码自动派生，用户不存在则自动创建。
+  // adminUser/adminPass/domain 由宿主通过 URL 传入（跨域 localStorage 不共享）。
+  const urlUser = queryString(route.query.user)
+  if (urlUser) {
+    try {
+      const server = serverUrl()
+      persistServer(server)
+      await loginWithUsername(urlUser, server, {
+        adminUser: queryString(route.query.adminUser),
+        adminPass: queryString(route.query.adminPass),
+        domain: queryString(route.query.domain),
+      })
+    } catch (err) {
+      error.value = `登录失败：${(err as Error).message}`
       return
     }
-    user.setCredentials(username, password)
+  } else if (!user.state.loggedIn) {
+    missingCredentials.value = true
+    return
   }
-  persistServer(queryString(route.query.server))
 
   loading.value = true
   try {
     emails.value = await makeClient().listInbox()
   } catch (err) {
-    error.value = err instanceof JmapError ? err.message : `加载收件箱失败: ${(err as Error).message}`
+    error.value = err instanceof JmapError ? err.message : `加载收件箱失败：${(err as Error).message}`
   } finally {
     loading.value = false
   }
@@ -70,10 +80,14 @@ function formatTime(iso: string): string {
   return date.toLocaleString()
 }
 
+/** 发件人显示用户名部分（去掉 @domain）。 */
 function senderLabel(email: EmailSummary): string {
   const first = email.from[0]
   if (!first) return '未知发送者'
-  return first.name || first.email
+  if (first.name) return first.name
+  // 从邮箱地址提取用户名（@ 前面部分）
+  const at = first.email.indexOf('@')
+  return at > 0 ? first.email.slice(0, at) : first.email
 }
 
 function openMessage(email: EmailSummary) {
@@ -85,11 +99,10 @@ async function remove(email: EmailSummary) {
   error.value = ''
   try {
     await makeClient().deleteEmails([email.id])
-    // 先本地移除，保证「删除后列表不再显示该条」；再向服务器刷新一次对齐状态。
     emails.value = emails.value.filter((e) => e.id !== email.id)
     await load()
   } catch (err) {
-    error.value = err instanceof JmapError ? err.message : `删除失败: ${(err as Error).message}`
+    error.value = err instanceof JmapError ? err.message : `删除失败：${(err as Error).message}`
   } finally {
     deletingId.value = null
   }
@@ -100,10 +113,15 @@ onMounted(load)
 
 <template>
   <section class="inbox">
-    <h2>收件箱</h2>
+    <div class="inbox-header">
+      <h2>收件箱</h2>
+      <button type="button" class="btn-refresh" :disabled="loading" @click="load">
+        {{ loading ? '加载中…' : '刷新消息' }}
+      </button>
+    </div>
 
     <p v-if="missingCredentials" class="inbox-hint">
-      未提供用户凭证。请从宿主系统进入，或在 URL 中带上 <code>?user=用户名&amp;pass=密码</code> 参数。
+      未提供用户名。请在 URL 中带上 <code>?user=用户名</code> 参数。
     </p>
 
     <template v-else>
@@ -112,7 +130,7 @@ onMounted(load)
         <button type="button" @click="load">重试</button>
       </p>
 
-      <p v-if="loading" class="inbox-hint">加载中…</p>
+      <p v-if="loading && !emails.length" class="inbox-hint">加载中…</p>
 
       <p v-else-if="!emails.length && !error" class="inbox-hint">收件箱是空的，还没有收到任何消息。</p>
 
@@ -147,6 +165,37 @@ onMounted(load)
 </template>
 
 <style scoped>
+.inbox-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.75rem;
+}
+
+.inbox-header h2 {
+  margin: 0;
+}
+
+.btn-refresh {
+  border: 1px solid #165dff;
+  border-radius: 4px;
+  background: #fff;
+  color: #165dff;
+  padding: 0.3rem 0.8rem;
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+
+.btn-refresh:hover:not(:disabled) {
+  background: #165dff;
+  color: #fff;
+}
+
+.btn-refresh:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
 .inbox-list {
   list-style: none;
   margin: 0;

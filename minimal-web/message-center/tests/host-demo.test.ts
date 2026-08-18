@@ -1,18 +1,18 @@
 // TEST tests/host-demo.test.ts — 验证宿主 Demo 单文件应用的真实行为
 // SCOPE: ../host-demo/index.html 内联脚本 —— 配置加载/持久化、批量创建用户的
 //        JMAP 请求构造（x:Domain/query → x:Domain/get → x:Account/set）、幂等跳过、
-//        失败处理、用户选择器渲染、iframe URL 凭证传参契约
+//        失败处理、用户列表渲染、消息中心面板 iframe URL 凭证传参契约
 // ENV: jsdom（vitest）。从磁盘读取真实的 host-demo/index.html，把 <body> 注入
 //      jsdom，再用 new Function 执行页面内联脚本（避免重复 eval 的 const 重声明）。
 //      fetch 被 mock 成假 JMAP 服务器并记录请求体；无真实网络。
 // GATES: 通过则证明：1) 点击「创建测试用户」发出的 Account/set 请求形状与
 //        Stalwart 管理 API 契约一致（100 个 User、credentials 数字键 map、
-//        domainId 来自 Domain/get）；2) 创建成功后选择器加载 demo001~demo100
+//        domainId 来自 Domain/get）；2) 创建成功后用户列表渲染 demo001~demo100
 //        且写入 localStorage；3) primaryKeyViolation 视为幂等跳过而非失败，
 //        其他错误不写入用户列表；4) 「打开消息中心」把选中用户的
-//        user/pass/server 以 URL 参数写进 iframe.src（与 message-center
+//        user/server 以 URL 参数写进 iframe.src（与 message-center
 //        Inbox.vue 的 route.query 自动登录契约一致）；5) 刷新（重新执行脚本）后
-//        无需网络即可恢复用户列表。
+//        无需网络即可恢复配置与用户列表。
 // RISK: mock 的 JMAP 响应是按 Stalwart v1.0.0 真实响应形状手工构造的，
 //        若 Stalwart 升级改变响应形状测试不会发现——该风险由手工 curl/浏览器
 //        联调覆盖（见任务报告）。测试不验证 CSS 与视觉呈现。
@@ -96,12 +96,8 @@ beforeEach(() => {
 })
 
 describe('host-demo 初始状态', () => {
-  it('无 localStorage 时选择器显示占位，配置字段使用默认值', () => {
+  it('无 localStorage 时配置字段使用默认值', () => {
     loadPage()
-    const select = $('user-select')
-    expect(select.options.length).toBe(1)
-    expect(select.options[0].value).toBe('')
-    expect(select.options[0].textContent).toContain('尚未创建用户')
     expect($('cfg-server').value).toBe('http://localhost:8082')
     expect($('cfg-mc-url').value).toBe('../message-center/dist/index.html')
   })
@@ -151,17 +147,17 @@ describe('批量创建测试用户', () => {
     )
   })
 
-  it('创建成功后选择器加载 demo001~demo100 并写入 localStorage', async () => {
+  it('创建成功后用户列表渲染 demo001~demo100 并写入 localStorage', async () => {
     mockJmapServer(okHandlers())
     loadPage()
     $('cfg-admin-pass').value = 'secret'
     $('btn-create').click()
-    await waitForStatus('已写入 localStorage')
+    await waitForStatus('完成')
 
-    const select = $('user-select')
-    expect(select.options.length).toBe(100)
-    expect(select.options[0].value).toBe('demo001@local.test')
-    expect(select.options[99].value).toBe('demo100@local.test')
+    const items = document.querySelectorAll('.user-list-item')
+    expect(items.length).toBe(100)
+    expect(items[0].textContent).toBe('demo001')
+    expect(items[99].textContent).toBe('demo100')
     const stored = JSON.parse(localStorage.getItem('hostDemo.users')!)
     expect(stored).toHaveLength(100)
     expect(stored[0]).toEqual({
@@ -186,9 +182,9 @@ describe('批量创建测试用户', () => {
     $('btn-create').click()
     await waitForStatus('已存在跳过 100 个')
 
-    expect(statusText()).not.toContain('创建失败')
+    expect(statusText()).not.toContain('部分用户创建失败')
     expect(JSON.parse(localStorage.getItem('hostDemo.users')!)).toHaveLength(100)
-    expect($('user-select').options.length).toBe(100)
+    expect(document.querySelectorAll('.user-list-item').length).toBe(100)
   })
 
   it('其他创建错误（如密码过弱）不写入用户列表并显示错误', async () => {
@@ -208,7 +204,7 @@ describe('批量创建测试用户', () => {
 
     expect(statusText()).toContain('Password is too weak.')
     expect(localStorage.getItem('hostDemo.users')).toBeNull()
-    expect($('user-select').options[0].textContent).toContain('尚未创建用户')
+    expect(document.querySelectorAll('.user-list-item').length).toBe(0)
   })
 
   it('HTTP 层失败（如凭证错误）给出可读错误且不写入用户', async () => {
@@ -217,6 +213,7 @@ describe('批量创建测试用户', () => {
       vi.fn(async () => ({ ok: false, status: 401 }) as Response),
     )
     loadPage()
+    $('cfg-admin-pass').value = 'secret'
     $('btn-create').click()
     await waitForStatus('JMAP HTTP 401')
     expect(localStorage.getItem('hostDemo.users')).toBeNull()
@@ -229,94 +226,83 @@ describe('消息中心 iframe 嵌入', () => {
     loadPage()
     $('cfg-admin-pass').value = 'secret'
     $('btn-create').click()
-    await waitForStatus('已写入 localStorage')
+    await waitForStatus('完成')
   }
 
-  it('iframe src 携带选中用户的 user/pass/server URL 参数（自动登录契约）', async () => {
+  it('iframe src 携带选中用户的 user/server URL 参数（自动登录契约）', async () => {
     await createUsers()
-    $('user-select').value = 'demo002@local.test'
-    $('btn-open').click()
+    // 打开弹窗并点击 quick-user 按钮。
+    $('btn-open-mc').click()
+    const quickBtns = document.querySelectorAll('.quick-user')
+    expect(quickBtns.length).toBeGreaterThan(0)
+    ;(quickBtns[1] as HTMLElement).click() // demo002
 
-    const frame = $('mc-frame') as unknown as HTMLIFrameElement
-    expect(frame.hidden).toBe(false)
-    expect(frame.getAttribute('src')).toBe(
-      '../message-center/dist/index.html#/inbox?user=demo002%40local.test&pass=Demo002!Mc7&server=' +
-        encodeURIComponent('http://localhost:8082'),
-    )
+    const panels = document.querySelectorAll('.panel')
+    expect(panels.length).toBe(1)
+    const iframe = panels[0].querySelector('iframe')!
+    expect(iframe.src).toContain('user=demo002')
+    expect(iframe.src).toContain('server=' + encodeURIComponent('http://localhost:8082'))
+    // URL 不应包含 pass 参数（密码由消息中心自动派生）。
+    expect(iframe.src).not.toContain('pass=')
   })
 
   it('自定义消息中心地址与自定义 JMAP 服务器都被正确使用', async () => {
     await createUsers()
     $('cfg-mc-url').value = 'http://localhost:5173'
     $('cfg-server').value = 'http://mail.example.test:8082'
-    $('user-select').value = 'demo100@local.test'
-    $('btn-open').click()
+    // 用文本输入方式打开（demo100 不在 quick-users 列表中）。
+    $('btn-open-mc').click()
+    $('pick-username').value = 'demo100'
+    $('btn-pick-open').click()
 
-    const frame = $('mc-frame') as unknown as HTMLIFrameElement
-    expect(frame.getAttribute('src')).toBe(
-      'http://localhost:5173#/inbox?user=demo100%40local.test&pass=Demo100!Mc7&server=' +
-        encodeURIComponent('http://mail.example.test:8082'),
-    )
+    const panels = document.querySelectorAll('.panel')
+    expect(panels.length).toBe(1)
+    const iframe = panels[0].querySelector('iframe')!
+    expect(iframe.src).toContain('http://localhost:5173')
+    expect(iframe.src).toContain('user=demo100')
+    expect(iframe.src).toContain('server=' + encodeURIComponent('http://mail.example.test:8082'))
   })
 
-  it('未创建用户时点击打开不加载 iframe 并提示', () => {
+  it('未创建用户时打开面板仍创建 iframe（用户由消息中心自动创建）', () => {
     loadPage()
-    $('btn-open').click()
-    const frame = $('mc-frame') as unknown as HTMLIFrameElement
-    expect(frame.hidden).toBe(true)
-    expect(frame.getAttribute('src')).toBeNull()
-    expect(statusText()).toContain('请先创建并选择一个测试用户')
-  })
-
-  it('「在新标签页打开」使用同一 URL 契约调用 window.open', async () => {
-    await createUsers()
-    const openSpy = vi.fn()
-    vi.stubGlobal('open', openSpy)
-    $('user-select').value = 'demo007@local.test'
-    $('btn-open-tab').click()
-    expect(openSpy).toHaveBeenCalledWith(
-      '../message-center/dist/index.html#/inbox?user=demo007%40local.test&pass=Demo007!Mc7&server=' +
-        encodeURIComponent('http://localhost:8082'),
-      '_blank',
-    )
+    $('btn-open-mc').click()
+    $('pick-username').value = ''
+    $('btn-pick-open').click() // 空用户名 → alert 并返回
+    // 没有面板被创建
+    expect(document.querySelectorAll('.panel').length).toBe(0)
   })
 })
 
 describe('localStorage 持久化', () => {
-  it('刷新后（重新执行脚本）无需网络即可恢复用户列表与选中项', () => {
+  it('刷新后（重新执行脚本）无需网络即可恢复配置与用户列表', () => {
     const users = [
       { name: 'demo001', email: 'demo001@local.test', password: 'Demo001!Mc7' },
-      { name: 'demo042', email: 'demo042@local.test', password: 'Demo042!Mc7' },
+      { name: 'demo042', email: 'demo042@local.test', password: 'Demo0042!Mc7' },
     ]
     localStorage.setItem('hostDemo.users', JSON.stringify(users))
-    localStorage.setItem('hostDemo.selectedUser', 'demo042@local.test')
+    localStorage.setItem('hostDemo.server', 'http://mail.custom.test:8082')
+    localStorage.setItem('hostDemo.mcUrl', 'http://mc.custom.test/index.html')
     const fetchSpy = vi.fn()
     vi.stubGlobal('fetch', fetchSpy)
 
     loadPage()
-    const select = $('user-select')
-    expect(select.options.length).toBe(2)
-    expect(select.value).toBe('demo042@local.test')
+    // 配置字段从 localStorage 恢复。
+    expect($('cfg-server').value).toBe('http://mail.custom.test:8082')
+    expect($('cfg-mc-url').value).toBe('http://mc.custom.test/index.html')
     expect(fetchSpy).not.toHaveBeenCalled()
+
+    // 打开配置弹窗查看用户列表。
+    $('btn-config').click()
+    const items = document.querySelectorAll('.user-list-item')
+    expect(items.length).toBe(2)
+    expect(items[0].textContent).toBe('demo001')
+    expect(items[1].textContent).toBe('demo042')
   })
 
-  it('切换用户后选中项写入 localStorage', () => {
-    localStorage.setItem(
-      'hostDemo.users',
-      JSON.stringify([
-        { name: 'demo001', email: 'demo001@local.test', password: 'Demo001!Mc7' },
-        { name: 'demo002', email: 'demo002@local.test', password: 'Demo002!Mc7' },
-      ]),
-    )
-    loadPage()
-    $('user-select').value = 'demo002@local.test'
-    $('user-select').dispatchEvent(new Event('change'))
-    expect(localStorage.getItem('hostDemo.selectedUser')).toBe('demo002@local.test')
-  })
-
-  it('hostDemo.users 损坏时回退到占位状态而不崩溃', () => {
+  it('hostDemo.users 损坏时回退到空列表而不崩溃', () => {
     localStorage.setItem('hostDemo.users', '{not json')
     loadPage()
-    expect($('user-select').options[0].textContent).toContain('尚未创建用户')
+    $('btn-config').click()
+    expect(document.querySelectorAll('.user-list-item').length).toBe(0)
   })
 })

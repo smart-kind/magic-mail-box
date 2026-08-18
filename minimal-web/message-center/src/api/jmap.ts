@@ -90,6 +90,8 @@ export interface JmapClient {
   sendEmail(input: SendMessageInput): Promise<void>
   /** 删除指定邮件。 */
   deleteEmails(ids: string[]): Promise<void>
+  /** 标记邮件为已读（设置 $seen keyword）。 */
+  markAsRead(ids: string[]): Promise<void>
 }
 
 /** 生成 HTTP Basic Auth 请求头值。 */
@@ -389,6 +391,15 @@ export function createJmapClient(options: JmapClientOptions): JmapClient {
     }
   }
 
+  async function markAsRead(ids: string[]): Promise<void> {
+    if (!ids.length) return
+    const update: Record<string, { keywords: Record<string, boolean> }> = {}
+    for (const id of ids) {
+      update[id] = { keywords: { $seen: true } }
+    }
+    await call([['Email/set', { update }, 'mr']])
+  }
+
   return {
     getSession,
     getAccountId,
@@ -398,5 +409,6 @@ export function createJmapClient(options: JmapClientOptions): JmapClient {
     getEmails,
     sendEmail,
     deleteEmails,
+    markAsRead,
   }
 }
