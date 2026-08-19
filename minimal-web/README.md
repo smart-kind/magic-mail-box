@@ -102,37 +102,34 @@ python3 -m http.server 8777 --bind 127.0.0.1
 
 > 不要用 `file://` 直接打开，浏览器会拦截 `file://` 下 ES module 的加载。
 
-### 4. 批量创建测试用户
+### 4. 环境配置
 
 1. 打开 `http://127.0.0.1:8777/host-demo/`
-2. 「连接设置」保持默认（服务器 `http://localhost:8082`），填入管理员密码
-3. 点击 **「创建测试用户（demo001 ~ demo100）」**
-4. 状态区显示「新建 100 个」或「已存在跳过 100 个」（幂等，可重复点击）
+2. 点击「环境配置」，填入管理员账号密码（用于自动创建用户），保存
+3. 可选：点击「批量创建 demo001 ~ demo100」预建测试用户
 
-用户规则：
-
-- 邮箱：`demo001@local.test` ~ `demo100@local.test`
-- 密码：`Demo001!Mc7` ~ `Demo100!Mc7`（`!Mc7` 后缀用于通过 Stalwart 的 zxcvbn 密码强度检查）
+消息中心会根据用户名自动派生密码。用户不存在时会自动创建。
 
 ### 5. 多标签页多用户通信测试
 
-宿主 Demo 通过 hash query 把凭证传给消息中心：
+宿主 Demo 通过 hash query 把用户名传给消息中心：
 
 ```
-…/message-center/dist/index.html#/inbox?user=<邮箱>&pass=<密码>&server=<JMAP地址>
+…/index.html#/inbox?user=<用户名>&server=<JMAP地址>
 ```
 
-凭证保存在各标签页自己的 `sessionStorage`，互不串号。
+密码由用户名自动派生，无需传递。
 
 **测试流程：**
 
-1. **标签页 A**：宿主 Demo 选择 `demo001@local.test` → 点「在新标签页打开」→ 消息中心自动登录
-2. **标签页 B**：新标签页打开宿主 Demo → 选 `demo002@local.test` → 同样打开消息中心
-3. **A 发纯文本**：发消息 → 收件人 demo002 → 填主题和内容 → 发送
-4. **B 收信**：刷新收件箱，看到 demo001 的消息（带未读蓝点），点击查看详情
-5. **B 回 JSON**：发消息 → 内容格式切到 JSON → 输入 `{"type":"notice","title":"回复确认","count":1}` → 发送
-6. **A 看结构化卡片**：刷新收件箱，打开 demo002 的回复，正文渲染为键值对卡片
-7. **删除测试**：任一方删除消息，刷新后从自己收件箱消失（不影响对方副本）
+1. 点「打开消息中心」→ 输入用户名（如 `david`）→ 打开 iframe
+2. 再点「打开消息中心」→ 输入另一个用户名（如 `alice`）→ 再开一个 iframe
+3. 两个 iframe 水平并排，各自以不同用户身份运行
+4. **david 发消息**：发消息 → 收件人输入 `alice` → 填主题和内容 → 发送
+5. **alice 收信**：点「刷新消息」，看到 david 的消息（带未读蓝点），点击查看详情
+6. **alice 回 JSON**：发消息 → 内容格式切到 JSON → 输入 `{"type":"notice","title":"回复确认","count":1}` → 发送
+7. **david 看结构化卡片**：刷新收件箱，打开 alice 的回复，正文渲染为键值对卡片
+8. **删除测试**：任一方删除消息，刷新后从自己收件箱消失（不影响对方副本）
 
 ## 开发模式
 
@@ -170,5 +167,5 @@ npm test       # vitest，85+ 个用例
 | 「JMAP API 请求失败: Failed to fetch」 | `apiUrl` 返回 `https://mail.local` | 确认 `STALWART_PUBLIC_URL=http://localhost:8082` 并重建容器 |
 | 创建用户报跨域 / Failed to fetch | Stalwart 未开 permissive CORS | WebAdmin → Settings → HTTP → Security → 开启 Permissive CORS |
 | 页面空白、只有导航栏 | 旧构建缓存 | 强制刷新（Cmd+Shift+R）；确认 `dist/` 是最新构建 |
-| 「未提供用户凭证」 | URL 参数放在了 hash 外面 | 必须用 `#/inbox?user=…&pass=…` 形式（宿主 Demo 已自动拼好） |
+| 「未提供用户名」 | URL 缺少 user 参数 | 必须用 `#/inbox?user=用户名` 形式（宿主 Demo 已自动拼好） |
 | 发送报 unknownMethod | 旧构建缺 `jmap:submission` 能力 | 重新 `npm run build` |
