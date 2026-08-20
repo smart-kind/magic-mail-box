@@ -94,15 +94,38 @@ export interface JmapClient {
   markAsRead(ids: string[]): Promise<void>
 }
 
+/**
+ * 将字符串编码为 Base64，支持 Unicode（UTF-8）。
+ * btoa 仅支持 Latin1，遇到中文/emoji 会抛 InvalidCharacterError；
+ * AUDIT-31: 先用 TextEncoder 转 UTF-8 字节再 base64 编码，编码方式更健壮。
+ * Basic Auth 头格式不变（`Basic <base64>`），仅编码实现替换。
+ */
+function toBase64(str: string): string {
+  const bytes = new TextEncoder().encode(str)
+  let binary = ''
+  for (const byte of bytes) {
+    binary += String.fromCharCode(byte)
+  }
+  return btoa(binary)
+}
+
 /** 生成 HTTP Basic Auth 请求头值。 */
 export function basicAuthHeader(username: string, password: string): string {
-  return `Basic ${btoa(`${username}:${password}`)}`
+  return `Basic ${toBase64(`${username}:${password}`)}`
 }
 
 export function createJmapClient(options: JmapClientOptions): JmapClient {
   const { baseUrl, username, password } = options
   const fetchImpl = options.fetchImpl ?? fetch
   const authHeader = basicAuthHeader(username, password)
+
+  // AUDIT-37: 生产环境应使用 https://，避免 Basic Auth 凭证明文传输。
+  // 不阻断本地 http 使用，仅 console.warn 提示。
+  if (import.meta.env.PROD && !baseUrl.startsWith('https://')) {
+    console.warn(
+      `生产环境 JMAP baseUrl 应使用 https://，当前为 ${baseUrl}，Basic Auth 凭证可能被明文传输`,
+    )
+  }
 
   let sessionPromise: Promise<JmapSession> | null = null
 
@@ -124,7 +147,10 @@ export function createJmapClient(options: JmapClientOptions): JmapClient {
     try {
       res = await fetchImpl(url, { headers: { Authorization: authHeader } })
     } catch (err) {
-      throw new JmapError(`无法连接 JMAP 服务器 ${baseUrl}: ${(err as Error).message}`)
+      // AUDIT-17: 错误信息不暴露 baseUrl（可能含内网地址/端口），仅 console.warn 供调试。
+      // 底层 err.message（如 "Failed to fetch"）不含 baseUrl 与密码，可保留以辅助排障。
+      console.warn('JMAP 连接失败, baseUrl=', baseUrl, 'err=', (err as Error).message)
+      throw new JmapError(`无法连接 JMAP 服务器: ${(err as Error).message}`)
     }
     if (res.status === 401) {
       throw new JmapError('JMAP 认证失败（401）：用户名或密码错误', 401)
@@ -220,7 +246,8 @@ export function createJmapClient(options: JmapClientOptions): JmapClient {
     if (!result.ids.length) {
       throw new JmapError(`找不到 role=${role} 的邮箱（mailbox）`)
     }
-    return result.ids[0]
+    // noUncheckedIndexedAccess: 上方 length 检查保证 ids[0] 存在
+    return result.ids[0]!
   }
 
   async function queryInboxIds(limit = 50): Promise<string[]> {
@@ -382,7 +409,8 @@ export function createJmapClient(options: JmapClientOptions): JmapClient {
     }
     const failed = Object.entries(result.notDestroyed ?? {})
     if (failed.length) {
-      const [id, err] = failed[0]
+      // noUncheckedIndexedAccess: 上方 length 检查保证 failed[0] 存在
+      const [id, err] = failed[0]!
       throw new JmapError(
         `删除邮件 ${id} 失败（${err.type}）: ${err.description ?? '无描述'}`,
         undefined,

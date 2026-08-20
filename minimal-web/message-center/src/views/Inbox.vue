@@ -4,10 +4,9 @@
 import { onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { createJmapClient, JmapError, type EmailSummary } from '../api/jmap'
-import { getServerUrl, loginWithUsername, persistedServer, persistServer, useUserStore } from '../stores/user'
-
-/** docker-compose.yml 把 Stalwart 的 8080 映射到宿主 8082。 */
-const DEFAULT_SERVER = 'http://localhost:8082'
+import { loginWithUsername, persistServer, useUserStore } from '../stores/user'
+import { serverUrl } from '../utils/serverUrl'
+import Compose from './Compose.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -18,18 +17,15 @@ const loading = ref(false)
 const error = ref('')
 const deletingId = ref<string | null>(null)
 const missingCredentials = ref(false)
+const showCompose = ref(false)
 
 function queryString(value: unknown): string {
   return typeof value === 'string' ? value : ''
 }
 
-function serverUrl(): string {
-  return queryString(route.query.server) || persistedServer() || getServerUrl() || DEFAULT_SERVER
-}
-
 function makeClient() {
   return createJmapClient({
-    baseUrl: serverUrl(),
+    baseUrl: serverUrl(queryString(route.query.server)),
     username: user.state.username,
     password: user.state.password,
   })
@@ -44,8 +40,9 @@ async function load() {
   const urlUser = queryString(route.query.user)
   if (urlUser) {
     try {
-      const server = serverUrl()
+      const server = serverUrl(queryString(route.query.server))
       persistServer(server)
+      // SECURITY: 本地演示通过 URL 传凭证（AUDIT-08），仅限本机；对外需改用 postMessage 或服务端会话
       await loginWithUsername(urlUser, server, {
         adminUser: queryString(route.query.adminUser),
         adminPass: queryString(route.query.adminPass),
@@ -99,13 +96,19 @@ async function remove(email: EmailSummary) {
   error.value = ''
   try {
     await makeClient().deleteEmails([email.id])
-    emails.value = emails.value.filter((e) => e.id !== email.id)
+    // AUDIT-35：删除成功后统一调 load() 重新拉取列表（保证与服务端一致），
+    // 不再本地 filter，避免「本地 filter + load()」双重更新导致的重复/不一致。
     await load()
   } catch (err) {
     error.value = err instanceof JmapError ? err.message : `删除失败：${(err as Error).message}`
   } finally {
     deletingId.value = null
   }
+}
+
+async function onComposeSent() {
+  showCompose.value = false
+  await load()
 }
 
 onMounted(load)
@@ -115,9 +118,12 @@ onMounted(load)
   <section class="inbox">
     <div class="inbox-header">
       <h2>收件箱</h2>
-      <button type="button" class="btn-refresh" :disabled="loading" @click="load">
-        {{ loading ? '加载中…' : '刷新消息' }}
-      </button>
+      <div class="inbox-actions">
+        <button type="button" class="btn-compose" @click="showCompose = true">发消息</button>
+        <button type="button" class="btn-refresh" :disabled="loading" @click="load">
+          {{ loading ? '加载中…' : '刷新消息' }}
+        </button>
+      </div>
     </div>
 
     <p v-if="missingCredentials" class="inbox-hint">
@@ -161,6 +167,7 @@ onMounted(load)
         </li>
       </ul>
     </template>
+    <Compose :visible="showCompose" @sent="onComposeSent" @close="showCompose = false" />
   </section>
 </template>
 
@@ -174,6 +181,25 @@ onMounted(load)
 
 .inbox-header h2 {
   margin: 0;
+}
+
+.inbox-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.btn-compose {
+  border: 1px solid #165dff;
+  border-radius: 4px;
+  background: #165dff;
+  color: #fff;
+  padding: 0.3rem 0.8rem;
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+
+.btn-compose:hover {
+  background: #4080fc;
 }
 
 .btn-refresh {

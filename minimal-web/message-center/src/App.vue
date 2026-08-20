@@ -8,8 +8,7 @@ import { RouterLink, RouterView } from 'vue-router'
       <h1>消息中心</h1>
       <nav>
         <RouterLink to="/inbox">收件箱</RouterLink>
-        <RouterLink to="/compose">发消息</RouterLink>
-        <RouterLink to="/login">登录</RouterLink>
+
       </nav>
     </header>
     <main>

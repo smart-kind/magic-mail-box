@@ -25,7 +25,13 @@ dist/
 *.log
 
 # Environment
+.env
+local.env.info.md
 .env.local
 .env.*.local
 .schedule-tasks-data/state/
 .gstack/
+
+# Tooling
+.arts/
+.codegraph/

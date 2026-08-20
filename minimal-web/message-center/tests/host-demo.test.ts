@@ -1,3 +1,4 @@
+// AUDIT-19: 本文件 mock 掉真实 JMAP client 以隔离视图逻辑；真实 Basic Auth/凭证流由 jmap.test.ts 覆盖
 // TEST tests/host-demo.test.ts — 验证宿主 Demo 单文件应用的真实行为
 // SCOPE: ../host-demo/index.html 内联脚本 —— 配置加载/持久化、批量创建用户的
 //        JMAP 请求构造（x:Domain/query → x:Domain/get → x:Account/set）、幂等跳过、

@@ -5,11 +5,17 @@
 /** 合法的 JSON 值（递归定义）。 */
 export type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue }
 
+// AUDIT-27：正文长度上限 1MB。超过则不尝试 JSON.parse，直接返回 null（按纯文本
+// 展示），避免超大正文触发 JSON.parse 长时间阻塞主线程或耗尽内存。
+const MAX_STRUCTURED_BODY_SIZE = 1024 * 1024
+
 /**
  * 若 text 整段是一个 JSON 对象或数组，返回解析后的值；否则返回 null。
  * 纯量 JSON（如正文只有 `42` 或 `"hi"`）不算结构化内容，按普通文本展示。
+ * 超过 MAX_STRUCTURED_BODY_SIZE 的正文直接返回 null，不调 JSON.parse。
  */
 export function parseStructuredBody(text: string): JsonValue | null {
+  if (text.length > MAX_STRUCTURED_BODY_SIZE) return null
   const trimmed = text.trim()
   if (!trimmed) return null
   const looksObject = trimmed.startsWith('{') && trimmed.endsWith('}')

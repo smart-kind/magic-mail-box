@@ -1,40 +1,59 @@
 services:
   stalwart:
+    # SECURITY(AUDIT-22): 建议固定到具体 patch（如 v0.16.x）或 digest 以保证可复现
     image: stalwartlabs/stalwart:v0.16
     container_name: stalwart
     restart: unless-stopped
     ports:
-      - "25:25"
-      - "587:587"
-      - "993:993"
-      - "443:443"
-      - "8082:8080"
+      # 绑定 127.0.0.1 仅本机访问（AUDIT-05）；容器间通信走 mailnet，不受影响
+      - "127.0.0.1:25:25"
+      - "127.0.0.1:587:587"
+      - "127.0.0.1:993:993"
+      - "127.0.0.1:443:443"
+      - "127.0.0.1:8082:8080"
     volumes:
-      - ./stalwart/config:/etc/stalwart
+      # SECURITY(AUDIT-23): 配置只读挂载更安全；data 卷保持可写
+      - ./stalwart/config:/etc/stalwart:ro
       - ./stalwart/data:/var/lib/stalwart
     environment:
       # JMAP session（.well-known/jmap）里的 apiUrl/downloadUrl 由该变量决定；
       # 不设置时回退为 https://<server.hostname>（本环境为 https://mail.local），
       # 浏览器无法访问，导致所有 JMAP 客户端在拿到 session 后请求失败。
       # 必须与宿主访问 8080 容器端口所用的地址一致（compose 映射为 8082）。
+      # SECURITY: 本地演示用 http 明文传输 Basic Auth（AUDIT-06）；仅限本机，对外需启用 TLS
       - STALWART_PUBLIC_URL=http://localhost:8082
+      # 恢复管理员口令从 .env 注入（.env 已被 .gitignore 忽略，勿提交）
+      - STALWART_RECOVERY_ADMIN=${STALWART_RECOVERY_ADMIN:?需在 .env 中设置}
       - TZ=Asia/Shanghai
+    # SECURITY(AUDIT-38): 资源限制，防止单容器耗尽宿主内存；mem_limit 为 compose v2/v3 兼容写法
+    mem_limit: 512m
+    # AUDIT-24: 健康检查；若容器内无 curl 可改用 wget 或 node。healthcheck 失败仅标记 unhealthy，不会阻止容器启动
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/.well-known/jmap"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
     networks:
       - mailnet
 
   bulwark:
+    # SECURITY(AUDIT-12): latest 不固定版本，构建不可复现；生产应固定到具体 tag/digest
     image: ghcr.io/bulwarkmail/webmail:latest
     container_name: bulwark
     restart: unless-stopped
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
     environment:
-      - JMAP_SERVER_URL=https://localhost
+      - JMAP_SERVER_URL=http://localhost:8082  # 与 STALWART_PUBLIC_URL 一致（AUDIT-13）
+      # SECURITY(AUDIT-21): 允许任意 JMAP 端点有钓鱼风险；生产应设为 false
       - ALLOW_CUSTOM_JMAP_ENDPOINT=true
       - TZ=Asia/Shanghai
+    # SECURITY(AUDIT-38): 资源限制，防止单容器耗尽宿主内存；mem_limit 为 compose v2/v3 兼容写法
+    mem_limit: 512m
     networks:
       - mailnet
 
 networks:
+  # SECURITY(AUDIT-28): bulwark 与 stalwart 同网络可访问全部端口；生产应用网络策略仅暴露 JMAP(8080) 给 bulwark
   mailnet:
     driver: bridge

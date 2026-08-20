@@ -1,7 +1,14 @@
 <script setup lang="ts">
 // 递归键值对卡片：把 JSON 值渲染为结构化 UI。对象渲染为键值对列表，数组渲染为
 // 列表，纯量直接显示文本。组件通过文件名 JsonCard 自引用实现递归。
-defineProps<{ value: unknown }>()
+// AUDIT-14：加 maxDepth 深度守卫，避免恶意或异常嵌套数据导致递归过深（栈溢出/
+// 渲染卡死）。超过 maxDepth 时显示「…（嵌套过深）」而不再继续递归。
+const props = withDefaults(
+  defineProps<{ value: unknown; maxDepth?: number; depth?: number }>(),
+  { maxDepth: 10, depth: 0 },
+)
+
+const tooDeep = props.depth >= props.maxDepth
 
 function isRecord(v: unknown): v is Record<string, unknown> {
   return v !== null && typeof v === 'object' && !Array.isArray(v)
@@ -15,11 +22,13 @@ function primitiveText(v: unknown): string {
 </script>
 
 <template>
-  <dl v-if="isRecord(value)" class="json-card">
+  <span v-if="tooDeep" class="json-too-deep">…（嵌套过深）</span>
+
+  <dl v-else-if="isRecord(value)" class="json-card">
     <template v-if="Object.keys(value).length">
       <template v-for="(v, k) in value" :key="k">
         <dt class="json-key">{{ k }}</dt>
-        <dd class="json-value"><JsonCard :value="v" /></dd>
+        <dd class="json-value"><JsonCard :value="v" :depth="depth + 1" :max-depth="maxDepth" /></dd>
       </template>
     </template>
     <p v-else class="json-empty">（空对象）</p>
@@ -27,7 +36,7 @@ function primitiveText(v: unknown): string {
 
   <ul v-else-if="Array.isArray(value)" class="json-array">
     <template v-if="value.length">
-      <li v-for="(item, i) in value" :key="i"><JsonCard :value="item" /></li>
+      <li v-for="(item, i) in value" :key="i"><JsonCard :value="item" :depth="depth + 1" :max-depth="maxDepth" /></li>
     </template>
     <li v-else class="json-empty">（空数组）</li>
   </ul>
@@ -75,5 +84,10 @@ function primitiveText(v: unknown): string {
 .json-empty {
   margin: 0;
   color: #86909c;
+}
+
+.json-too-deep {
+  color: #86909c;
+  font-style: italic;
 }
 </style>

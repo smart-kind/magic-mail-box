@@ -6,12 +6,10 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { createJmapClient, JmapError, type EmailAddress, type EmailDetail } from '../api/jmap'
-import { persistedServer, persistServer, useUserStore } from '../stores/user'
+import { loginWithUsername, persistServer, useUserStore } from '../stores/user'
+import { serverUrl } from '../utils/serverUrl'
 import { parseStructuredBody, type JsonValue } from '../utils/structuredBody'
 import JsonCard from '../components/JsonCard.vue'
-
-/** docker-compose.yml 把 Stalwart 的 8080 映射到宿主 8082。 */
-const DEFAULT_SERVER = 'http://localhost:8082'
 
 const route = useRoute()
 const router = useRouter()
@@ -43,7 +41,7 @@ function queryString(value: unknown): string {
 
 function makeClient() {
   return createJmapClient({
-    baseUrl: queryString(route.query.server) || persistedServer() || DEFAULT_SERVER,
+    baseUrl: serverUrl(queryString(route.query.server)),
     username: user.state.username,
     password: user.state.password,
   })
@@ -59,15 +57,27 @@ async function load() {
   }
 
   if (!user.state.loggedIn) {
-    const username = queryString(route.query.user)
-    const password = queryString(route.query.pass)
-    if (!username || !password) {
+    // AUDIT-16：移除对 route.query.pass 的直接读取，统一走 loginWithUsername
+    // （与 Inbox 一致）。URL 只需 user 参数，密码自动派生，用户不存在则自动创建。
+    const urlUser = queryString(route.query.user)
+    if (!urlUser) {
       missingCredentials.value = true
       return
     }
-    user.setCredentials(username, password)
+    try {
+      const server = serverUrl(queryString(route.query.server))
+      persistServer(server)
+      // SECURITY: 本地演示通过 URL 传凭证（AUDIT-08），仅限本机；对外需改用 postMessage 或服务端会话
+      await loginWithUsername(urlUser, server, {
+        adminUser: queryString(route.query.adminUser),
+        adminPass: queryString(route.query.adminPass),
+        domain: queryString(route.query.domain),
+      })
+    } catch (err) {
+      error.value = `登录失败：${(err as Error).message}`
+      return
+    }
   }
-  persistServer(queryString(route.query.server))
 
   loading.value = true
   try {
@@ -78,7 +88,8 @@ async function load() {
       error.value = '没有找到这条消息，它可能已被删除。'
     } else {
       // 打开消息后标记已读
-      try { await client.markAsRead([messageId.value]) } catch { /* 静默 */ }
+      // AUDIT-34：标记已读失败不再静默吞错，输出 warn 便于排查。
+      try { await client.markAsRead([messageId.value]) } catch (e) { console.warn('标记已读失败', e) }
     }
   } catch (err) {
     error.value = err instanceof JmapError ? err.message : `加载消息失败: ${(err as Error).message}`
@@ -140,7 +151,7 @@ onMounted(load)
     </div>
 
     <p v-if="missingCredentials" class="detail-hint">
-      未提供用户凭证。请从宿主系统进入，或在 URL 中带上 <code>?user=用户名&amp;pass=密码</code> 参数。
+      未提供用户凭证。请从宿主系统进入，或在 URL 中带上 <code>?user=用户名</code> 参数。
     </p>
 
     <template v-else>

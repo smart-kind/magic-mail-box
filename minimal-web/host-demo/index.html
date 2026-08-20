@@ -45,6 +45,46 @@
       .toolbar button.primary { background: #1f6feb; border-color: #1f6feb; }
       .toolbar button.primary:hover { background: #1a5fd4; }
 
+      /* ── 模式开关 ── */
+      .mode-switch {
+        display: inline-flex;
+        border: 1px solid rgba(255,255,255,0.3);
+        border-radius: 4px;
+        overflow: hidden;
+      }
+      .mode-btn {
+        padding: 5px 12px;
+        font-size: 12px;
+        border: none;
+        background: transparent;
+        color: rgba(255,255,255,0.7);
+        cursor: pointer;
+      }
+      .mode-btn.active { background: rgba(255,255,255,0.2); color: #fff; }
+
+      /* ── 当前用户栏 ── */
+      .current-user-bar {
+        display: none;
+        align-items: center;
+        gap: 6px;
+        font-size: 12px;
+        color: rgba(255,255,255,0.7);
+      }
+      .current-user-bar .user-tag {
+        font-weight: 600;
+        color: #fff;
+      }
+      .current-user-bar button {
+        padding: 3px 10px;
+        font-size: 11px;
+        border: 1px solid rgba(255,255,255,0.3);
+        border-radius: 3px;
+        background: transparent;
+        color: rgba(255,255,255,0.85);
+        cursor: pointer;
+      }
+      .current-user-bar button:hover { background: rgba(255,255,255,0.15); }
+
       /* ── iframe 工作区 ── */
       .workspace {
         flex: 1;
@@ -254,7 +294,16 @@
   <body>
     <!-- ── 顶部工具栏 ── -->
     <div class="toolbar">
-      <span class="toolbar-title">消息中心 — 多用户测试</span>
+      <span class="toolbar-title">消息中心</span>
+      <div class="mode-switch">
+        <button id="mode-host" class="mode-btn active">宿主模拟</button>
+        <button id="mode-multi" class="mode-btn">多用户测试</button>
+      </div>
+      <div id="current-user-bar" class="current-user-bar">
+        <span>当前用户：</span>
+        <span id="current-user-name" class="user-tag">未选择</span>
+        <button id="btn-switch-user">切换</button>
+      </div>
       <button id="btn-config">环境配置</button>
       <button id="btn-open-mc" class="primary">打开消息中心</button>
     </div>
@@ -341,6 +390,8 @@
         adminPass: 'hostDemo.adminPass',
         users: 'hostDemo.users',
         domain: 'hostDemo.domain',
+        currentUser: 'hostDemo.currentUser',
+        mode: 'hostDemo.mode',
       }
 
       // 消息中心读取的共享 localStorage 键
@@ -362,7 +413,48 @@
 
       // ── 工具函数 ──
 
+      // ── 当前用户管理（宿主模拟模式）──
+      // 现在从 localStorage 读取；未来嵌入业务系统时只需替换 getCurrentUser 的实现。
+
+      function getCurrentUser() {
+        return localStorage.getItem(LS_KEYS.currentUser) || ''
+      }
+
+      function setCurrentUser(username) {
+        localStorage.setItem(LS_KEYS.currentUser, username)
+        updateCurrentUserDisplay()
+      }
+
+      function clearCurrentUser() {
+        localStorage.removeItem(LS_KEYS.currentUser)
+        updateCurrentUserDisplay()
+      }
+
+      function updateCurrentUserDisplay() {
+        const name = getCurrentUser()
+        $('current-user-name').textContent = name || '未选择'
+      }
+
+      // ── 模式管理 ──
+
+      function getMode() {
+        return localStorage.getItem(LS_KEYS.mode) || 'host'
+      }
+
+      function setMode(mode) {
+        localStorage.setItem(LS_KEYS.mode, mode)
+        applyMode()
+      }
+
+      function applyMode() {
+        const isHost = getMode() === 'host'
+        $('mode-host').classList.toggle('active', isHost)
+        $('mode-multi').classList.toggle('active', !isHost)
+        $('current-user-bar').style.display = isHost ? 'flex' : 'none'
+      }
+
       function demoName(n) { return 'demo' + String(n).padStart(3, '0') }
+      // SECURITY: demo 用户口令可预测（AUDIT-26/AUDIT-03），仅限本地演示；对外应用随机强口令。
       function demoPassword(n) { return 'Demo' + String(n).padStart(3, '0') + '!Mc7' }
 
       function demoUsers(domain) {
@@ -373,6 +465,7 @@
         return users
       }
 
+      // SECURITY: 本地演示通过 URL 传管理员凭证（AUDIT-08），仅限本机；凭证会进浏览器历史/共享链接。对外应改用 postMessage 或服务端会话。
       /** 生成消息中心 URL：传 user（用户名）、server，以及 admin 凭证供自动创建用户。 */
       function messageCenterUrl(base, username, server, adminUser, adminPass) {
         const hashBase = base.replace(/#.*$/, '')
@@ -447,6 +540,7 @@
         // host-demo 自身的键
         localStorage.setItem(LS_KEYS.server, c.server)
         localStorage.setItem(LS_KEYS.mcUrl, c.mcUrl)
+        // SECURITY: 本地演示管理员凭证明文存 localStorage（AUDIT-09），仅限本机；XSS 可读取。对外应改用 JMAP session token 或服务端会话。
         localStorage.setItem(LS_KEYS.adminUser, c.adminUser)
         localStorage.setItem(LS_KEYS.adminPass, c.adminPass)
         // 消息中心读取的共享键
@@ -494,6 +588,9 @@
           btn.className = 'quick-user'
           btn.textContent = u.name
           btn.addEventListener('click', () => {
+            if (getMode() === 'host') {
+              setCurrentUser(u.name)
+            }
             openPanel(u.name)
             closeModal('modal-pick-user')
           })
@@ -594,8 +691,17 @@
           alert('最多同时打开 ' + MAX_PANELS + ' 个消息中心窗口，请先关闭一些')
           return
         }
+        // 宿主模拟模式：有当前用户直接打开，无则弹窗选
+        if (getMode() === 'host') {
+          const user = getCurrentUser()
+          if (user) {
+            openPanel(user)
+            return
+          }
+        }
+        // 多用户测试模式 或 宿主模拟无当前用户：弹窗选
         renderQuickUsers()
-        $('pick-username').value = ''
+        $('pick-username').value = getMode() === 'host' ? '' : ''
         $('pick-username').focus()
         openModal('modal-pick-user')
       })
@@ -604,6 +710,9 @@
       $('btn-pick-open').addEventListener('click', () => {
         const username = $('pick-username').value.trim()
         if (!username) { alert('请输入用户名'); return }
+        if (getMode() === 'host') {
+          setCurrentUser(username)
+        }
         openPanel(username)
         closeModal('modal-pick-user')
       })
@@ -614,6 +723,20 @@
           e.preventDefault()
           $('btn-pick-open').click()
         }
+      })
+
+      // ── 模式开关 ──
+
+      $('mode-host').addEventListener('click', () => setMode('host'))
+      $('mode-multi').addEventListener('click', () => setMode('multi'))
+
+      // ── 切换当前用户 ──
+
+      $('btn-switch-user').addEventListener('click', () => {
+        renderQuickUsers()
+        $('pick-username').value = getCurrentUser()
+        $('pick-username').focus()
+        openModal('modal-pick-user')
       })
 
       // ── iframe 面板管理 ──
@@ -635,7 +758,15 @@
 
         const header = document.createElement('div')
         header.className = 'panel-header'
-        header.innerHTML = '<span>消息中心</span> <span class="user-tag">' + username + '</span>'
+        // 用 DOM API + textContent 构建，避免 innerHTML 拼接用户名导致 XSS (AUDIT-10)
+        const tagSpan = document.createElement('span')
+        tagSpan.textContent = '消息中心'
+        const userSpan = document.createElement('span')
+        userSpan.className = 'user-tag'
+        userSpan.textContent = username
+        header.appendChild(tagSpan)
+        header.appendChild(document.createTextNode(' '))
+        header.appendChild(userSpan)
 
         const closeBtn = document.createElement('button')
         closeBtn.className = 'close-btn'
@@ -647,6 +778,8 @@
         const iframe = document.createElement('iframe')
         iframe.src = url
         iframe.title = username
+        // sandbox：允许脚本/同源 storage/表单/弹窗，禁止 iframe 导航父页面（AUDIT-11）
+        iframe.sandbox = 'allow-scripts allow-same-origin allow-forms allow-popups'
 
         panel.appendChild(header)
         panel.appendChild(iframe)
@@ -656,6 +789,8 @@
       // ── 初始化 ──
 
       loadConfig()
+      applyMode()
+      updateCurrentUserDisplay()
     </script>
   </body>
 </html>

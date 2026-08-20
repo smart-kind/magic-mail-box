@@ -50,8 +50,6 @@ cd ~/mail-server
 在项目目录下创建 `docker-compose.yml`：
 
 ```yaml
-version: "3.8"
-
 services:
   stalwart:
     image: stalwartlabs/mail-server:latest

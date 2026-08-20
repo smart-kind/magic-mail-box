@@ -1,6 +1,6 @@
 import { reactive, readonly } from 'vue'
 import { derivePassword } from '../utils/derivePassword'
-import { createJmapClient } from '../api/jmap'
+import { createJmapClient, basicAuthHeader } from '../api/jmap'
 
 // 当前登录用户状态。URL 只传用户名（无邮箱概念），密码由用户名自动派生。
 // 用户在邮件系统中不存在时自动创建（需要 localStorage 中有管理员凭证）。
@@ -18,6 +18,8 @@ const SS_KEYS = {
 } as const
 
 // localStorage 键（host-demo 写入，message-center 读取）
+// SECURITY: adminPass 为管理员明文口令，由 host-demo 写入 localStorage（AUDIT-09），仅限本机演示；
+// 对外应改用 JMAP session token 或服务端会话，不应在浏览器持久化管理员凭证。
 const LS_KEYS = {
   adminUser: 'mc.adminUser',
   adminPass: 'mc.adminPass',
@@ -40,8 +42,9 @@ try {
     state.password = password
     state.loggedIn = true
   }
-} catch {
+} catch (e) {
   // sessionStorage 不可用时按未登录处理。
+  console.warn('从 sessionStorage 恢复登录态失败:', e)
 }
 
 export function useUserStore() {
@@ -51,9 +54,11 @@ export function useUserStore() {
     state.loggedIn = true
     try {
       sessionStorage.setItem(SS_KEYS.username, username)
+      // SECURITY: 本地演示凭证明文存 storage（AUDIT-09），仅限本机；对外应改用 JMAP session token 或服务端会话
       sessionStorage.setItem(SS_KEYS.password, password)
-    } catch {
-      // 忽略持久化失败，内存态仍可用。
+    } catch (e) {
+      // 持久化失败时内存态仍可用，仅记录。
+      console.warn('写入 sessionStorage(凭证) 失败:', e)
     }
   }
 
@@ -64,8 +69,9 @@ export function useUserStore() {
     try {
       sessionStorage.removeItem(SS_KEYS.username)
       sessionStorage.removeItem(SS_KEYS.password)
-    } catch {
-      // 同上。
+    } catch (e) {
+      // 同上，仅记录。
+      console.warn('清除 sessionStorage(凭证) 失败:', e)
     }
   }
 
@@ -77,8 +83,8 @@ export function persistServer(server: string) {
   if (!server) return
   try {
     sessionStorage.setItem(SS_KEYS.server, server)
-  } catch {
-    // 忽略。
+  } catch (e) {
+    console.warn('写入 sessionStorage(server) 失败:', e)
   }
 }
 
@@ -86,7 +92,8 @@ export function persistServer(server: string) {
 export function persistedServer(): string {
   try {
     return sessionStorage.getItem(SS_KEYS.server) ?? ''
-  } catch {
+  } catch (e) {
+    console.warn('读取 sessionStorage(server) 失败:', e)
     return ''
   }
 }
@@ -95,7 +102,8 @@ export function persistedServer(): string {
 export function getMailDomain(): string {
   try {
     return localStorage.getItem(LS_KEYS.domain) || 'local.test'
-  } catch {
+  } catch (e) {
+    console.warn('读取 localStorage(domain) 失败:', e)
     return 'local.test'
   }
 }
@@ -104,15 +112,23 @@ export function getMailDomain(): string {
 export function getServerUrl(): string {
   try {
     return localStorage.getItem(LS_KEYS.server) || 'http://localhost:8082'
-  } catch {
+  } catch (e) {
+    console.warn('读取 localStorage(server) 失败:', e)
     return 'http://localhost:8082'
   }
 }
 
 // ── 自动创建用户 ──
 
-async function jmapAdminCall(server: string, adminUser: string, adminPass: string, methodCalls: any[]) {
-  const auth = 'Basic ' + btoa(`${adminUser}:${adminPass}`)
+/**
+ * JMAP 方法调用三元组：[methodName, arguments, clientTag]。
+ * AUDIT-20: 替换原先的 any[]，提供精确的元组类型约束。
+ */
+type JmapMethodCall = [string, Record<string, unknown>, string]
+
+async function jmapAdminCall(server: string, adminUser: string, adminPass: string, methodCalls: JmapMethodCall[]) {
+  // AUDIT-31: 用 basicAuthHeader（内部 toBase64 支持 Unicode）替代 btoa，避免中文/emoji 凭证编码失败。
+  const auth = basicAuthHeader(adminUser, adminPass)
   const res = await fetch(server.replace(/\/+$/, '') + '/jmap/', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: auth },
@@ -140,35 +156,45 @@ async function fetchDefaultDomain(server: string, adminUser: string, adminPass: 
 }
 
 async function autoCreateUser(server: string, username: string, password: string, adminUser: string, adminPass: string): Promise<void> {
-  try {
-    if (!adminUser || !adminPass) {
-      throw new Error('未配置管理员凭证，无法自动创建用户。请在「环境配置」中填写管理员账号密码。')
-    }
+  // SECURITY: demo-only — 调用方传入的 password 通常由 derivePassword(username) 派生，
+  // 即新用户口令可由用户名公开推导，等同于无密码保护。仅限本地联调演示，
+  // 严禁用于对外环境。见 derivePassword.ts 顶部警示与审计报告 AUDIT-03。
+  if (!adminUser || !adminPass) {
+    throw new Error('未配置管理员凭证，无法自动创建用户。请在「环境配置」中填写管理员账号密码。')
+  }
 
-    const domain = await fetchDefaultDomain(server, adminUser, adminPass)
-    // 缓存域名
-    try { localStorage.setItem(LS_KEYS.domain, domain.name) } catch {}
+  const domain = await fetchDefaultDomain(server, adminUser, adminPass)
+  // 缓存域名
+  try { localStorage.setItem(LS_KEYS.domain, domain.name) } catch (e) { console.warn('缓存域名到 localStorage 失败:', e) }
 
-    await jmapAdminCall(server, adminUser, adminPass, [
-      ['x:Account/set', {
-        create: {
-          [username]: {
-            '@type': 'User',
-            name: username,
-            domainId: domain.id,
-            credentials: { 0: { '@type': 'Password', secret: password } },
-            roles: { '@type': 'User' },
-            permissions: { '@type': 'Inherit' },
-            quotas: {},
-            memberGroupIds: {},
-            aliases: {},
-            encryptionAtRest: { '@type': 'Disabled' },
-          },
+  const [setResp] = await jmapAdminCall(server, adminUser, adminPass, [
+    ['x:Account/set', {
+      create: {
+        [username]: {
+          '@type': 'User',
+          name: username,
+          domainId: domain.id,
+          credentials: { 0: { '@type': 'Password', secret: password } },
+          roles: { '@type': 'User' },
+          permissions: { '@type': 'Inherit' },
+          quotas: {},
+          memberGroupIds: {},
+          aliases: {},
+          encryptionAtRest: { '@type': 'Disabled' },
         },
-      }, 'c3'],
-    ])
-  } catch (err) {
-    throw new Error(`自动创建用户失败：${(err as Error).message}`)
+      },
+    }, 'c3'],
+  ])
+
+  // 检查业务级创建结果
+  const notCreated = (setResp[1]?.notCreated) || {}
+  const failure = notCreated[username]
+  if (failure) {
+    if (failure.type === 'primaryKeyViolation') {
+      // 用户已存在，视为正常，让调用方重试登录
+      return
+    }
+    throw new Error(`自动创建用户失败：${failure.description || failure.type}`)
   }
 }
 
@@ -202,7 +228,7 @@ export async function loginWithUsername(username: string, server: string, opts: 
 
   // 缓存域名
   if (opts.domain) {
-    try { localStorage.setItem(LS_KEYS.domain, opts.domain) } catch {}
+    try { localStorage.setItem(LS_KEYS.domain, opts.domain) } catch (e) { console.warn('缓存域名到 localStorage 失败:', e) }
   }
 
   // 登录成功，写入 store

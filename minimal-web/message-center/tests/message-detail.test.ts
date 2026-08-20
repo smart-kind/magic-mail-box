@@ -1,3 +1,4 @@
+// AUDIT-19: 本文件 mock 掉真实 JMAP client 以隔离视图逻辑；真实 Basic Auth/凭证流由 jmap.test.ts 覆盖
 // TEST tests/message-detail.test.ts — 验证消息详情页的加载、渲染、JSON 卡片与删除
 // SCOPE: src/views/MessageDetail.vue（URL/store 凭证接入；getEmails([id]) 加载并渲染
 //        发送者/收件人/时间/主题/正文；JSON 正文渲染为结构化键值对卡片而非原始字符串；
@@ -33,6 +34,8 @@ vi.mock('../src/api/jmap', async (importOriginal) => {
     createJmapClient: vi.fn(() => ({
       getEmails: mocks.getEmails,
       deleteEmails: mocks.deleteEmails,
+      // AUDIT-16: MessageDetail 现走 loginWithUsername（同 Inbox），需要 getSession。
+      getSession: vi.fn().mockResolvedValue({}),
     })),
   }
 })
@@ -96,10 +99,12 @@ describe('MessageDetail view', () => {
       '/message/m1?user=demo001&pass=Demo001!&server=http://mail.test:8082',
     )
 
+    // AUDIT-16: MessageDetail 不再从 URL 读 pass，改走 loginWithUsername（同 Inbox），
+    // 密码由 derivePassword('demo001') 派生为 'Demo001!Mc7'。
     expect(createJmapClient).toHaveBeenCalledWith({
       baseUrl: 'http://mail.test:8082',
       username: 'demo001',
-      password: 'Demo001!',
+      password: 'Demo001!Mc7',
     })
     expect(mocks.getEmails).toHaveBeenCalledWith(['m1'])
 

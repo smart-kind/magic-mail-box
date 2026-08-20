@@ -1,3 +1,4 @@
+// AUDIT-19: 本文件 mock 掉真实 JMAP client 以隔离视图逻辑；真实 Basic Auth/凭证流由 jmap.test.ts 覆盖
 // TEST tests/inbox.test.ts — 验证收件箱列表页的凭证接入、渲染、跳转与删除
 // SCOPE: src/views/Inbox.vue（URL/store/sessionStorage 凭证接入、listInbox 渲染：发送者/
 //        主题/时间/未读标记；点击跳转 /message/:id；删除后刷新并移除条目；空收件箱与错误提示）
@@ -22,6 +23,7 @@ import { useUserStore } from '../src/stores/user'
 const mocks = vi.hoisted(() => ({
   listInbox: vi.fn<() => Promise<EmailSummary[]>>(),
   deleteEmails: vi.fn<(ids: string[]) => Promise<void>>(),
+  sendEmail: vi.fn<(input: { to: string[]; subject: string; text: string }) => Promise<void>>(),
 }))
 
 vi.mock('../src/api/jmap', async (importOriginal) => {
@@ -31,6 +33,7 @@ vi.mock('../src/api/jmap', async (importOriginal) => {
     createJmapClient: vi.fn(() => ({
       listInbox: mocks.listInbox,
       deleteEmails: mocks.deleteEmails,
+      sendEmail: mocks.sendEmail,
       getSession: vi.fn().mockResolvedValue({}),
     })),
   }
@@ -75,6 +78,7 @@ beforeEach(() => {
   sessionStorage.clear()
   mocks.listInbox.mockResolvedValue([UNREAD, READ])
   mocks.deleteEmails.mockResolvedValue()
+  mocks.sendEmail.mockResolvedValue()
 })
 
 describe('Inbox view', () => {
@@ -163,5 +167,36 @@ describe('Inbox view', () => {
     const { wrapper } = await mountInbox()
     expect(wrapper.text()).toContain('网络不可达')
     expect(wrapper.find('[role="alert"]').exists()).toBe(true)
+  })
+
+  it('opens the compose modal when the compose button is clicked', async () => {
+    const { wrapper } = await mountInbox()
+    expect(wrapper.find('.modal-overlay').exists()).toBe(false)
+    await wrapper.find('.btn-compose').trigger('click')
+    await flushPromises()
+    expect(wrapper.find('.modal-overlay').exists()).toBe(true)
+  })
+
+  it('sends a message from the compose modal and refreshes the inbox', async () => {
+    mocks.listInbox.mockResolvedValueOnce([UNREAD, READ]).mockResolvedValueOnce([UNREAD, READ, READ])
+    const { wrapper } = await mountInbox()
+
+    await wrapper.find('.btn-compose').trigger('click')
+    await flushPromises()
+
+    await wrapper.find('#recipient-input').setValue('demo002')
+    await wrapper.find('#subject').setValue('你好')
+    await wrapper.find('#body').setValue('正文')
+    await wrapper.find('form').trigger('submit')
+    await flushPromises()
+
+    expect(mocks.sendEmail).toHaveBeenCalledWith({
+      to: ['demo002@local.test'],
+      subject: '你好',
+      text: '正文',
+    })
+    // 发送后弹窗关闭、收件箱刷新（listInbox 被再次调用）。
+    expect(wrapper.find('.modal-overlay').exists()).toBe(false)
+    expect(mocks.listInbox).toHaveBeenCalledTimes(2)
   })
 })
